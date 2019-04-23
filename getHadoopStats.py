@@ -76,7 +76,8 @@ def getJobs(jobs):
         webPage = json.load(fd)
 
     for key in webPage['jobs']['job']:
-        jobs.append(key['id'])
+        if key['state'] != 'FAILED':
+            jobs.append(key['id'])
 
 def getJobProperties(jobId, jobProperties):
 
@@ -85,9 +86,17 @@ def getJobProperties(jobId, jobProperties):
     fileName = jobId + '.json'
     
     exists = checkFileExists(fileName)
-    
+   
+    print(uri)
     if not exists:
-        wget.download(uri, fileName)
+        try:
+            wget.download(uri, fileName)
+        except:
+            pass
+            return
+
+    if not exists:
+        return
 
     with open(fileName) as fd:
         webPage = json.load(fd)
@@ -111,7 +120,11 @@ def getJobCounters(jobId, jobProperties):
     exists = checkFileExists(fileName)
 
     if not exists:
-        wget.download(uri, fileName)
+        try:
+            wget.download(uri, fileName)
+        except:
+            pass
+            return
 
     jobCounters = []
 
