@@ -16,9 +16,11 @@ URI='http://0.0.0.0:19888/ws/v1/history/'
 JobProperties = ('name', 
                  'id', 
                  'startTime', 
-                 'finishTime', 
-                 'avgMapTime', 
-                 'avgReduceTime', 
+                 'finishTime',
+                 'mapsCompleted',
+                 'reducesCompleted',
+                 'avgMapTime',
+                 'avgReduceTime',
                  'avgShuffleTime',
                  'avgMergeTime',
                  'bytes_read_map',
@@ -38,11 +40,11 @@ JobProperties = ('name',
                  'gc_time_millis',
                  'cpu_milliseconds',
                  'slots_millis_maps',
-                 'slots_millis_reduce',
+                 'slots_millis_reduces',
                  'vcores_millis_maps',
-                 'vcores_millis_reduce',
+                 'vcores_millis_reduces',
                  'millis_maps',
-                 'millis_reduce')
+                 'millis_reduces')
 
 
 def checkFileExists(fileName):
@@ -55,7 +57,11 @@ def checkFileExists(fileName):
         #os.remove(fileName)
 
 def getStartTime():
-    checkFileExists('historyServer.json')
+
+    exists = checkFileExists('historyServer.json')
+
+    if exists:
+        os.remove('historyServer.json')
 
     wget.download(URI + 'info', 'historyServer.json')
 
@@ -101,14 +107,16 @@ def getJobProperties(jobId, jobProperties):
     with open(fileName) as fd:
         webPage = json.load(fd)
 
-    jobProperties[JobProperties.index('name')]           = webPage['job']['name']
-    jobProperties[JobProperties.index('id')]             = webPage['job']['id']
-    jobProperties[JobProperties.index('startTime')]      = webPage['job']['startTime']
-    jobProperties[JobProperties.index('finishTime')]     = webPage['job']['finishTime']
-    jobProperties[JobProperties.index('avgMapTime')]     = webPage['job']['avgMapTime']
-    jobProperties[JobProperties.index('avgReduceTime')]  = webPage['job']['avgReduceTime']
-    jobProperties[JobProperties.index('avgShuffleTime')] = webPage['job']['avgShuffleTime']
-    jobProperties[JobProperties.index('avgMergeTime')]   = webPage['job']['avgMergeTime']
+    jobProperties[JobProperties.index('name')]             = webPage['job']['name']
+    jobProperties[JobProperties.index('id')]               = webPage['job']['id']
+    jobProperties[JobProperties.index('startTime')]        = webPage['job']['startTime']
+    jobProperties[JobProperties.index('finishTime')]       = webPage['job']['finishTime']
+    jobProperties[JobProperties.index('mapsCompleted')]    = webPage['job']['mapsCompleted']
+    jobProperties[JobProperties.index('reducesCompleted')] = webPage['job']['reducesCompleted']
+    jobProperties[JobProperties.index('avgMapTime')]       = webPage['job']['avgMapTime']
+    jobProperties[JobProperties.index('avgReduceTime')]    = webPage['job']['avgReduceTime']
+    jobProperties[JobProperties.index('avgShuffleTime')]   = webPage['job']['avgShuffleTime']
+    jobProperties[JobProperties.index('avgMergeTime')]     = webPage['job']['avgMergeTime']
 
 
 def getJobCounters(jobId, jobProperties):
@@ -133,16 +141,28 @@ def getJobCounters(jobId, jobProperties):
 
     for i in range (len(webPage['jobCounters']['counterGroup'])):
 
-        if webPage['jobCounters']['counterGroup'][i]['counterGroupName'] == 'org.apache.hadoop.mapreduce.lib.input.FileInputFormatCounter':
-       
-            jobProperties[JobProperties.index('bytes_read_map')]    =  webPage['jobCounters']['counterGroup'][i]['counter'][0]['mapCounterValue']
-            jobProperties[JobProperties.index('bytes_read_reduce')] = webPage['jobCounters']['counterGroup'][i]['counter'][0]['reduceCounterValue']
-        
-        if webPage['jobCounters']['counterGroup'][i]['counterGroupName'] == 'org.apache.hadoop.mapreduce.lib.output.FileOutputFormatCounter':
+        if webPage['jobCounters']['counterGroup'][i]['counterGroupName'] == 'org.apache.hadoop.mapreduce.JobCounter':
             
-            jobProperties[JobProperties.index('bytes_written_map')]    =  webPage['jobCounters']['counterGroup'][i]['counter'][0]['mapCounterValue']
-            jobProperties[JobProperties.index('bytes_written_reduce')] = webPage['jobCounters']['counterGroup'][i]['counter'][0]['reduceCounterValue']
-
+            for j in range (len(webPage['jobCounters']['counterGroup'][i]['counter'])):
+            
+                if webPage['jobCounters']['counterGroup'][i]['counter'][j]['name'] == 'SLOTS_MILLIS_MAPS':
+                    jobProperties[JobProperties.index('slots_millis_maps')] = webPage['jobCounters']['counterGroup'][i]['counter'][j]['totalCounterValue']
+        
+                if webPage['jobCounters']['counterGroup'][i]['counter'][j]['name'] == 'SLOTS_MILLIS_REDUCES':
+                    jobProperties[JobProperties.index('slots_millis_reduces')] = webPage['jobCounters']['counterGroup'][i]['counter'][j]['totalCounterValue']
+            
+                if webPage['jobCounters']['counterGroup'][i]['counter'][j]['name'] == 'MILLIS_MAPS':
+                    jobProperties[JobProperties.index('millis_maps')] = webPage['jobCounters']['counterGroup'][i]['counter'][j]['totalCounterValue']
+            
+                if webPage['jobCounters']['counterGroup'][i]['counter'][j]['name'] == 'MILLIS_REDUCES':
+                    jobProperties[JobProperties.index('millis_reduces')] = webPage['jobCounters']['counterGroup'][i]['counter'][j]['totalCounterValue']
+                
+                if webPage['jobCounters']['counterGroup'][i]['counter'][j]['name'] == 'VCORES_MILLIS_MAPS':
+                   jobProperties[JobProperties.index('vcores_millis_maps')] = webPage['jobCounters']['counterGroup'][i]['counter'][j]['totalCounterValue']
+ 
+                if webPage['jobCounters']['counterGroup'][i]['counter'][j]['name'] == 'VCORES_MILLIS_REDUCES':
+                    jobProperties[JobProperties.index('vcores_millis_reduces')] = webPage['jobCounters']['counterGroup'][i]['counter'][j]['totalCounterValue']
+        
         if webPage['jobCounters']['counterGroup'][i]['counterGroupName'] == 'org.apache.hadoop.mapreduce.FileSystemCounter':
            
             for j in range (len(webPage['jobCounters']['counterGroup'][i]['counter'])):
@@ -178,6 +198,16 @@ def getJobCounters(jobId, jobProperties):
                 
                if webPage['jobCounters']['counterGroup'][i]['counter'][j]['name'] == 'CPU_MILLISECONDS':
                     jobProperties[JobProperties.index('cpu_milliseconds')] = webPage['jobCounters']['counterGroup'][i]['counter'][j]['totalCounterValue']
+        
+        if webPage['jobCounters']['counterGroup'][i]['counterGroupName'] == 'org.apache.hadoop.mapreduce.lib.input.FileInputFormatCounter':
+       
+            jobProperties[JobProperties.index('bytes_read_map')]    = webPage['jobCounters']['counterGroup'][i]['counter'][0]['mapCounterValue']
+            jobProperties[JobProperties.index('bytes_read_reduce')] = webPage['jobCounters']['counterGroup'][i]['counter'][0]['reduceCounterValue']
+        
+        if webPage['jobCounters']['counterGroup'][i]['counterGroupName'] == 'org.apache.hadoop.mapreduce.lib.output.FileOutputFormatCounter':
+            
+            jobProperties[JobProperties.index('bytes_written_map')]    = webPage['jobCounters']['counterGroup'][i]['counter'][0]['mapCounterValue']
+            jobProperties[JobProperties.index('bytes_written_reduce')] = webPage['jobCounters']['counterGroup'][i]['counter'][0]['reduceCounterValue']
 
 
 def getJobRMCounter(job, path, jobProperties):
@@ -222,9 +252,9 @@ def getJobRMCounter(job, path, jobProperties):
                     break
                 line = logFile.readline()
             logFile.close()
-                
 
-def savetoCSV(jobResults): 
+
+def savetoCSV(jobResults):
  
     filename = 'result.csv'
 
@@ -263,13 +293,14 @@ def saveToXLS(jobResults):
                         'M_out_bytes',
                         'R_shuffle_bytes',
                         'CPU_time',
-                        'AvgMapTime',
-                        'AvgRdcTime',
-                        'AvgShuffleTime',
-                        'AvgMgTime',
+#                        'AvgMapTime',
+#                        'AvgRdcTime',
+#                        'AvgShuffleTime',
+#                        'AvgMgTime',
                         'millis_maps',
-                        'millis_reduce'
-                        'Non CPU Time'
+                        'millis_reduces',
+                        'vcores_millis_maps',
+                        'vcores_millis_reduces',
                         'CPU Utilization')
                     
     row_list = []
@@ -302,17 +333,20 @@ def saveToXLS(jobResults):
         row2.append(row[JobProperties.index('map_output_bytes')])
         row2.append(row[JobProperties.index('reduce_shuffle_bytes')])
         row2.append(row[JobProperties.index('cpu_milliseconds')] + row[JobProperties.index('gc_time_millis')])
-        row2.append(row[JobProperties.index('avgMapTime')])
-        row2.append(row[JobProperties.index('avgReduceTime')])
-        row2.append(row[JobProperties.index('avgShuffleTime')])
-        row2.append(row[JobProperties.index('avgMergeTime')])
+#        row2.append(row[JobProperties.index('mapsCompleted')])
+#        row2.append(row[JobProperties.index('reducesCompleted')])
+#        row2.append(row[JobProperties.index('avgMapTime')])
+#        row2.append(row[JobProperties.index('avgReduceTime')])
+#        row2.append(row[JobProperties.index('avgShuffleTime')])
+#        row2.append(row[JobProperties.index('avgMergeTime')])
         row2.append(row[JobProperties.index('millis_maps')])
-        row2.append(row[JobProperties.index('millis_reduce')])
-        row2.append(row[JobProperties.index('millis_reduce')] + row[JobProperties.index('millis_reduce')] - row[JobProperties.index('cpu_milliseconds')] - row[JobProperties.index('gc_time_millis')])
-        if (row[JobProperties.index('vcores_millis_maps')] + row[JobProperties.index('vcores_millis_reduce')]) == 0:
+        row2.append(row[JobProperties.index('millis_reduces')])
+        row2.append(row[JobProperties.index('vcores_millis_maps')])
+        row2.append(row[JobProperties.index('vcores_millis_reduces')])
+        if (row[JobProperties.index('vcores_millis_maps')] + row[JobProperties.index('vcores_millis_reduces')]) == 0:
             row2.append(-1)
         else:
-            row2.append(row[JobProperties.index('cpu_milliseconds')] / (row[JobProperties.index('vcores_millis_maps')] + row[JobProperties.index('vcores_millis_reduce')]) * 100)
+            row2.append( (row[JobProperties.index('cpu_milliseconds')] + row[JobProperties.index('gc_time_millis')]) / (row[JobProperties.index('vcores_millis_maps')] + row[JobProperties.index('vcores_millis_reduces')]) * 100)
 
         row_list2.append(row2)
  
@@ -356,15 +390,22 @@ def main():
     jobResults = []
   
     if len(sys.argv) < 1:
+        print ("Please provide name of output directory")
         return
 
-    startedOn = sys.argv[1]
+    #startedOn = sys.argv[1]
+    print(getStartTime())
+    startedOn = datetime.datetime.fromtimestamp(int(getStartTime())/1000).strftime('%Y-%m-%d')
+    print(startedOn)    
+
+#    getStartTime()
 
     path = os.getcwd()
     workDir = "/home/abs5688/cloudlab/results" + os.path.sep + str(startedOn)
     exists = os.path.isdir(workDir)
     if not exists:
         os.mkdir(workDir)
+#        os.mkdir(workDir + os.path.sep + "RMLogs")
     else:
         print ("Using pre existing data",  startedOn )
     os.chdir(workDir)
@@ -375,7 +416,8 @@ def main():
     for job in jobs:
         getJobProperties(job, jobProperties)
         getJobCounters(job, jobProperties)
-        getJobRMCounter(job, workDir + os.path.sep + "result-" + str(startedOn), jobProperties)
+        #getJobRMCounter(job, workDir + os.path.sep + "result-" + str(startedOn), jobProperties)
+        #getJobRMCounter(job, workDir, jobProperties)
         jobResults.append(jobProperties.copy())
         jobProperties = [None] * len(JobProperties)
 
