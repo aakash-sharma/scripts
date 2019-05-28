@@ -5,6 +5,6 @@ i=0
 
 while [ $i -lt $range ];
 do
-	ssh -o "StrictHostKeyChecking no" slave$i "pkill limitCPU.sh"
+	ssh -o "StrictHostKeyChecking no" slave$i "kill -9 \$(pgrep collectCPUstats)"
 	i=$((i+1))
 done
