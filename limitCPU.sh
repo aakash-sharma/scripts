@@ -10,7 +10,7 @@ do
 	cmd=$(/proj/scheduler-PG0/scripts/cpu_usage.sh)
 	container=$(ps -ef | grep container_ | grep -v container_executor | grep -v "grep" | awk '{print $2}')
 	let "usage=$cmd" 
-	echo $usage
+	echo $(date) $usage >> /users/aakashsh/cpu_usage
 	
 	if [ -z "$container" ]
 	then	
@@ -22,7 +22,7 @@ do
 			then
 				itr=0
 				token=$((token+1))
-				echo $token >> /users/aakashsh/tokens
+				echo $(date) $token >> /users/aakashsh/tokens
 			fi
 		elif (( usage <= 60 ))
         	then
@@ -32,37 +32,50 @@ do
                 	then
                         	itr=0
                         	token=$((token+1))
-                        	echo $token >> /users/aakashsh/tokens
+                        	echo $(date) $token >> /users/aakashsh/tokens
                 	fi
 		fi
 	else
 		if [ $token -ne 0 ]
 		then
-			echo $container
+			echo $(date) $container
 			lim=$(ps -ef | grep cpulimit | grep -v "grep" | awk '{print $2}')
 			for pid in $lim; do
 				kill -9 $pid
 			done
 				
-			token=$((token-1))
-			echo $token >> /users/aakashsh/tokens
 
 			if (( usage >= 60 ))
 			then
+				token=$((token-1))
+				echo $(date) $token >> /users/aakashsh/tokens
 				sleep 30
-			else
+			elif (( usage >= 30 ))
+			then
+				token=$((token-1))
+				echo $(date) $token >> /users/aakashsh/tokens
 				sleep 60
+			else
+				echo $(date) "container not consuming CPU"
+				itr=$((itr + 10))
+				if ((itr >= 60))
+				then
+					itr=0
+					token=$((token+1))
+					echo $(date) $token >> /users/aakashsh/tokens
+				fi
+		
 			fi
 	
 		else
-			echo "Limiting rate"
+			echo $(date) "Limiting rate"
 			lim=$(ps -ef | grep cpulimit | grep -v "grep" | awk '{print $2}')
 			for pid in $lim; do
 				kill -9 $pid
 			done
 			for pid in $container; do
-				echo $pid
-				cpulimit -p $pid -l 40 &
+				echo $(date) $pid
+				cpulimit -p $pid -l 35 &
 			done
 			sleep 30
 		fi
