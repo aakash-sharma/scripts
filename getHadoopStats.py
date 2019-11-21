@@ -9,6 +9,7 @@ from pprint import pprint
 from os import listdir
 from os.path import isfile, join
 import datetime
+from shutil import copyfile
 
 
 URI='http://0.0.0.0:19888/ws/v1/history/'
@@ -141,7 +142,7 @@ def getJobCounters(jobId, jobProperties):
     with open(fileName) as fd:
         webPage = json.load(fd)
 
-    pprint(webPage)
+    #pprint(webPage)
 
     for i in range (len(webPage['jobCounters']['counterGroup'])):
 
@@ -320,6 +321,8 @@ def saveToXLS(jobResults, startedOn):
     row_list.append(JobProperties)
     row_list2.append(CleanJobProps)
 
+    #pprint(jobResults)
+
     for row in jobResults:
 
         for i in range(len(row)):
@@ -368,9 +371,11 @@ def saveToXLS(jobResults, startedOn):
     for column in column_list:
         for item in range(len(column)):
             value = column[item]
+            #print(value)
             if value == None:
                 value = 0
             if is_number(value):
+                #print(value)
                 worksheet1.write(item, i, value, style=style)
             else:
                 worksheet1.write(item, i, value)
@@ -398,26 +403,25 @@ def main():
     jobs = []
     jobProperties = [None] * len(JobProperties)
     jobResults = []
+    startedOn = ""
   
-    if len(sys.argv) < 1:
-        print ("Please provide name of output directory")
-        return
+    if len(sys.argv) <= 1:
+        startedOn = str(datetime.datetime.fromtimestamp(int(getStartTime())/1000).strftime('%Y-%m-%d'))
+    else:
+        startedOn = sys.argv[1]
 
-    #startedOn = sys.argv[1]
-    print(getStartTime())
-    startedOn = datetime.datetime.fromtimestamp(int(getStartTime())/1000).strftime('%Y-%m-%d')
     print(startedOn)    
 
-#    getStartTime()
-
     path = os.getcwd()
-    workDir = "/home/abs5688/cloudlab/results" + os.path.sep + str(startedOn)
+    workDir = "/home/abs5688/cloudlab/results" + os.path.sep + startedOn
     exists = os.path.isdir(workDir)
     if not exists:
         os.mkdir(workDir)
-#        os.mkdir(workDir + os.path.sep + "RMLogs")
+        copyfile('historyServer.json', workDir + os.path.sep)
     else:
         print ("Using pre existing data",  startedOn )
+
+    
     os.chdir(workDir)
     
     getJobs(jobs) 
