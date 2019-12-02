@@ -24,7 +24,7 @@ do
 				token=$((token+1))
 				echo $(date) $token >> /users/aakashsh/tokens
 			fi
-		elif (( usage <= 60 ))
+		elif (( usage <= 40 ))
         	then
                 	itr=$((itr + 5))
 
@@ -45,12 +45,12 @@ do
 			done
 				
 
-			if (( usage >= 60 ))
+			if (( usage >= 40 ))
 			then
 				token=$((token-1))
 				echo $(date) $token >> /users/aakashsh/tokens
 				sleep 30
-			elif (( usage >= 30 ))
+			elif (( usage >= 20 ))
 			then
 				token=$((token-1))
 				echo $(date) $token >> /users/aakashsh/tokens
