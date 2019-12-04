@@ -12,7 +12,7 @@ import datetime
 from shutil import copy
 
 
-URI='http://0.0.0.0:19888/ws/v1/history/'
+URI='http://0.0.0.0:19889/ws/v1/history/'
 
 JobProperties = ('name', 
                  'id', 
@@ -201,6 +201,8 @@ def getTaskProperties(jobId, taskId, taskProperties):
     taskProperties[TaskProperties.index('successfulAttempt')] = webPage['task']['successfulAttempt']
 
     fd.close()
+    
+    uri = URI + 'mapreduce/jobs/' + jobId + '/tasks/' + taskId + '/attempts'
 
     fileName = taskProperties[TaskProperties.index('successfulAttempt')] + '.json'
     exists = checkFileExists(jobId + os.path.sep + fileName)
@@ -219,13 +221,21 @@ def getTaskProperties(jobId, taskId, taskProperties):
     
     print("Processing " + fileName)
     
-    if 'taskAttempt' in webPage.keys(): 
+    if 'taskAttempts' in webPage.keys(): 
+        for i in range(len(webPage['taskAttempts']['taskAttempt'])):
+            if webPage['taskAttempts']['taskAttempt'][i]['state'] == 'SUCCEEDED':
+                taskProperties[TaskProperties.index('elapsedTime')] = webPage['taskAttempts']['taskAttempt'][i]['elapsedTime']
+                if taskProperties[TaskProperties.index('type')] == 'REDUCE' :
+                    taskProperties[TaskProperties.index('elapsedShuffleTime')] = webPage['taskAttempts']['taskAttempt'][i]['elapsedShuffleTime']
+                    taskProperties[TaskProperties.index('elapsedMergeTime')]   = webPage['taskAttempts']['taskAttempt'][i]['elapsedMergeTime']
+                    taskProperties[TaskProperties.index('elapsedReduceTime')]  = webPage['taskAttempts']['taskAttempt'][i]['elapsedReduceTime']
+    elif 'taskAttempt' in webPage.keys(): 
         taskProperties[TaskProperties.index('elapsedTime')] = webPage['taskAttempt']['elapsedTime']
         if taskProperties[TaskProperties.index('type')] == 'REDUCE' :
             taskProperties[TaskProperties.index('elapsedShuffleTime')] = webPage['taskAttempt']['elapsedShuffleTime']
             taskProperties[TaskProperties.index('elapsedMergeTime')]   = webPage['taskAttempt']['elapsedMergeTime']
             taskProperties[TaskProperties.index('elapsedReduceTime')]  = webPage['taskAttempt']['elapsedReduceTime']
-    else:
+    else: # probably redundent condition
         taskProperties[TaskProperties.index('elapsedTime')] = webPage['task']['elapsedTime'] 
         if taskProperties[TaskProperties.index('type')] == 'REDUCE' :
             if 'elapsedShuffleTime' in webPage['task'].keys():
