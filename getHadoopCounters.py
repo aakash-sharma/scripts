@@ -12,7 +12,7 @@ import datetime
 from shutil import copy
 
 
-URI='http://0.0.0.0:19889/ws/v1/history/'
+URI='http://0.0.0.0:19888/ws/v1/history/'
 
 JobProperties = ('name', 
                  'id', 
@@ -86,7 +86,7 @@ def getStartTime():
     with open('historyServer.json') as fd:
         webPage = json.load(fd)
 
-    print("History server started on" + webPage['historyInfo']['startedOn'])
+    print("History server started on" + str(webPage['historyInfo']['startedOn']))
 
     return (webPage['historyInfo']['startedOn'])
 
@@ -119,7 +119,11 @@ def getJobs(jobs):
                 os.mkdir(key['id'])
             exists = checkFileExists(key['id'] + os.path.sep + job + '.json')
             if not exists:
-                wget.download(URI + 'mapreduce/jobs/' + key['id'] + '/tasks', key['id'] + os.path.sep + job + '.json')
+                try:    
+                    wget.download(URI + 'mapreduce/jobs/' + key['id'] + '/tasks', key['id'] + os.path.sep + job + '.json')
+                except:
+                    print("Unable to download file " + key['id'] + os.path.sep + job + '.json' + " from URI " + uri)
+                    return
             with open(key['id'] + os.path.sep + job + '.json') as fd:
                 webPage = json.load(fd)
                     
@@ -178,14 +182,14 @@ def getTaskProperties(jobId, taskId, taskProperties):
     fileName = taskId + '.json'
 
     exists = checkFileExists(jobId + os.path.sep + fileName)
-
+    
     if not exists:
         try:
             print("Getting " + jobId + " Task properties " + taskId)
             print(uri)
             wget.download(uri, jobId + os.path.sep + fileName)
         except:
-            pass
+            print("Unable to download file " + jobId + os.path.sep + fileName + " from URI " + uri)
             return
 
     with open(jobId + os.path.sep + fileName) as fd:
@@ -200,14 +204,14 @@ def getTaskProperties(jobId, taskId, taskProperties):
 
     fileName = taskProperties[TaskProperties.index('successfulAttempt')] + '.json'
     exists = checkFileExists(jobId + os.path.sep + fileName)
-
+    
     if not exists:
         try:
-            print("Getting task attempts for ", + taskId)
+            print("Getting task attempts for " + taskId)
             print(uri)
             wget.download(uri, jobId + os.path.sep + fileName)
         except:
-            pass
+            print("Unable to download file " + jobId + os.path.sep + fileName + " from URI " + uri)
             return
 
     with open(jobId + os.path.sep + fileName) as fd:
@@ -215,12 +219,29 @@ def getTaskProperties(jobId, taskId, taskProperties):
     
     print("Processing " + fileName)
     
-    taskProperties[TaskProperties.index('elapsedTime')] = webPage['taskAttempt']['elapsedTime']
+    if 'taskAttempt' in webPage.keys(): 
+        taskProperties[TaskProperties.index('elapsedTime')] = webPage['taskAttempt']['elapsedTime']
+        if taskProperties[TaskProperties.index('type')] == 'REDUCE' :
+            taskProperties[TaskProperties.index('elapsedShuffleTime')] = webPage['taskAttempt']['elapsedShuffleTime']
+            taskProperties[TaskProperties.index('elapsedMergeTime')]   = webPage['taskAttempt']['elapsedMergeTime']
+            taskProperties[TaskProperties.index('elapsedReduceTime')]  = webPage['taskAttempt']['elapsedReduceTime']
+    else:
+        taskProperties[TaskProperties.index('elapsedTime')] = webPage['task']['elapsedTime'] 
+        if taskProperties[TaskProperties.index('type')] == 'REDUCE' :
+            if 'elapsedShuffleTime' in webPage['task'].keys():
+                taskProperties[TaskProperties.index('elapsedShuffleTime')] = webPage['task']['elapsedShuffleTime']
+            else:
+                taskProperties[TaskProperties.index('elapsedShuffleTime')] = 0
 
-    if taskProperties[TaskProperties.index('type')] == 'REDUCE' :
-        taskProperties[TaskProperties.index('elapsedShuffleTime')] = webPage['taskAttempt']['elapsedShuffleTime']
-        taskProperties[TaskProperties.index('elapsedMergeTime')]   = webPage['taskAttempt']['elapsedMergeTime']
-        taskProperties[TaskProperties.index('elapsedReduceTime')]  = webPage['taskAttempt']['elapsedReduceTime']
+            if 'elapsedMergeTime' in webPage['task'].keys():
+                taskProperties[TaskProperties.index('elapsedMergeTime')]   = webPage['task']['elapsedMergeTime']
+            else:
+                taskProperties[TaskProperties.index('elapsedMergeTime')]   = 0
+
+            if 'elapsedReduceTime' in webPage['task'].keys():
+                taskProperties[TaskProperties.index('elapsedReduceTime')]  = webPage['task']['elapsedReduceTime']
+            else:
+                taskProperties[TaskProperties.index('elapsedReduceTime')]  = 0
 
     fd.close()
 
@@ -235,7 +256,7 @@ def getTaskProperties(jobId, taskId, taskProperties):
             print(uri)
             wget.download(uri, jobId + os.path.sep + fileName)
         except:
-            pass
+            print("Unable to download file " + jobId + os.path.sep + fileName + " from URI " + uri)
             return
 
     with open(jobId + os.path.sep + fileName) as fd:
@@ -271,7 +292,7 @@ def getJobCounters(jobId, jobProperties):
             print(uri)
             wget.download(uri, fileName)
         except:
-            pass
+            print("Unable to download file " + fileName + " from URI " + uri)
             return
 
     jobCounters = []
@@ -484,34 +505,48 @@ def saveToXLS(jobResults, taskResults, startedOn):
         
         row_list.append(row)
 
-        row2 = [None] * len(CleanJobProps) 
+        row2 = [None] * len(CleanJobProps)
+
+#        if row[JobProperties.index('id')] == None:
+#            print(row) 
+#
+#        if taskResults == None:
+#            print('none task results')
+#        for task in taskResults:
+#            if task == None:
+#                print('none task')
+#            if task[TaskProperties.index('jobId')] == None:
+#                print(task)
+#            if task[TaskProperties.index('elapsedTime')] == None:
+#                print(task)
+
 
         elapsedTime_ms_allTasks       = sum([ task[TaskProperties.index('elapsedTime')]
-                                              for task in taskResults if task[TaskProperties.index('jobId')] == 
+                                              for task in taskResults  if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')]])
         elapsedTime_ms_allMapTasks    = sum([ task[TaskProperties.index('elapsedTime')] 
-                                              for task in taskResults if task[TaskProperties.index('jobId')] == 
+                                              for task in taskResults if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')] and task[TaskProperties.index('type')] == 'MAP' ])
         elapsedTime_ms_allReduceTasks = sum([ task[TaskProperties.index('elapsedTime')] 
-                                              for task in taskResults if task[TaskProperties.index('jobId')] == 
+                                              for task in taskResults if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')] and task[TaskProperties.index('type')] == 'REDUCE' ])
         cpuTime_ms_allTasks           = sum([ task[TaskProperties.index('cpu_milliseconds')] + task[TaskProperties.index('gc_time_millis')] 
-                                              for task in taskResults if task[TaskProperties.index('jobId')] == 
+                                              for task in taskResults if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')]])
         cpuTime_ms_mapTasks           = sum([ task[TaskProperties.index('cpu_milliseconds')] + task[TaskProperties.index('gc_time_millis')]
-                                              for task in taskResults if task[TaskProperties.index('jobId')] == 
+                                              for task in taskResults if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')] and task[TaskProperties.index('type')] == 'MAP' ])
         cpuTime_ms_reduceTasks        = sum([ task[TaskProperties.index('cpu_milliseconds')] + task[TaskProperties.index('gc_time_millis')]
-                                              for task in taskResults if task[TaskProperties.index('jobId')] == 
+                                              for task in taskResults if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')] and task[TaskProperties.index('type')] == 'REDUCE' ])
         elapsedTime_ms_shuffle        = sum([ task[TaskProperties.index('elapsedShuffleTime')] \
                                               for task in taskResults if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')] and task[TaskProperties.index('elapsedShuffleTime')] != None ])
         elapsedTime_ms_merge          = sum([ task[TaskProperties.index('elapsedMergeTime')]
-                                              for task in taskResults if task[TaskProperties.index('jobId')] == 
+                                              for task in taskResults if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')] and task[TaskProperties.index('elapsedMergeTime')] != None ])
         elapsedTime_ms_reduce         = sum([ task[TaskProperties.index('elapsedReduceTime')]
-                                              for task in taskResults if task[TaskProperties.index('jobId')] == 
+                                              for task in taskResults if task[TaskProperties.index('jobId')] == \
                                               row[JobProperties.index('id')] and task[TaskProperties.index('elapsedReduceTime')] != None ])
 
         row2[CleanJobProps.index('name')]                = row[JobProperties.index('name')]
@@ -613,14 +648,17 @@ def main():
     startedOn = ""
   
     if len(sys.argv) <= 1:
-        startedOn = str(datetime.datetime.fromtimestamp(int(getStartTime())/1000).strftime('%Y-%m-%d'))
-    else:
-        startedOn = sys.argv[1]
+        print("Please specify the work dir!")
+        return
+       
+    start = getStartTime() 
+    startedOn = str(datetime.datetime.fromtimestamp(int(getStartTime())/1000).strftime('%Y-%m-%d'))
+    resultDir = sys.argv[1]
 
     print(startedOn)    
 
     path = os.getcwd()
-    workDir = "/home/abs5688/cloudlab/results" + os.path.sep + startedOn
+    workDir = resultDir + os.path.sep + startedOn
     exists = os.path.isdir(workDir)
     if not exists:
         os.mkdir(workDir)
