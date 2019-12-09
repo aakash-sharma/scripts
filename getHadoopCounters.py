@@ -51,6 +51,8 @@ JobProperties = ('name',
 
 TaskProperties = ('id',
                   'jobId',
+                  'startTime',
+                  'finishTime',
                   'type',
                   'successfulAttempt',
                   'gc_time_millis',
@@ -225,6 +227,8 @@ def getTaskProperties(jobId, taskId, taskProperties):
         for i in range(len(webPage['taskAttempts']['taskAttempt'])):
             if webPage['taskAttempts']['taskAttempt'][i]['state'] == 'SUCCEEDED':
                 taskProperties[TaskProperties.index('elapsedTime')] = webPage['taskAttempts']['taskAttempt'][i]['elapsedTime']
+                taskProperties[TaskProperties.index('startTime')]   = webPage['taskAttempts']['taskAttempt'][i]['startTime']
+                taskProperties[TaskProperties.index('finishTime')]  = webPage['taskAttempts']['taskAttempt'][i]['finishTime']
                 if taskProperties[TaskProperties.index('type')] == 'REDUCE' :
                     taskProperties[TaskProperties.index('elapsedShuffleTime')] = webPage['taskAttempts']['taskAttempt'][i]['elapsedShuffleTime']
                     taskProperties[TaskProperties.index('elapsedMergeTime')]   = webPage['taskAttempts']['taskAttempt'][i]['elapsedMergeTime']
@@ -656,14 +660,18 @@ def main():
     jobResults = []
     taskResults = []
     startedOn = ""
+    print(len(sys.argv))
   
     if len(sys.argv) <= 1:
         print("Please specify the work dir!")
         return
-       
-    start = getStartTime() 
-    startedOn = str(datetime.datetime.fromtimestamp(int(getStartTime())/1000).strftime('%Y-%m-%d'))
+    
     resultDir = sys.argv[1]
+
+    if len(sys.argv) >= 3:
+        startedOn = sys.argv[2]
+    else:
+        startedOn = datetime.datetime.fromtimestamp((getStartTime())/1000).strftime('%Y-%m-%d')
 
     print(startedOn)    
 
