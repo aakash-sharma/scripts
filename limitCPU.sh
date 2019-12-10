@@ -1,16 +1,18 @@
 #!/bin/bash
 
+HOME=/home/abs5688
+SCRIPT_DIR=/home/abs5688/cloudlab/scripts
 declare -i itr
 token=2
 itr=0
 usage=0
-rm -f /users/aakashsh/tokens
+rm -f ${HOME}/tokens
 while :
 do
-	cmd=$(/proj/scheduler-PG0/scripts/cpu_usage.sh)
+	cmd=$(/home/abs5688/cloudlab/scripts/cpu_usage.sh)
 	container=$(ps -ef | grep container_ | grep -v container_executor | grep -v "grep" | awk '{print $2}')
 	let "usage=$cmd" 
-	echo $(date) $usage >> /users/aakashsh/cpu_usage
+	echo $(date) $usage >> ${HOME}/cpu_usage
 	
 	if (( usage <= 10 ))
 	then
@@ -20,7 +22,7 @@ do
 		then
 			itr=0
 			token=$((token+1))
-			echo $(date) $token >> /users/aakashsh/tokens
+			echo $(date) $token >> ${HOME}/tokens
 		fi
 	elif (( usage <= 30 ))
        	then
@@ -30,7 +32,7 @@ do
                	then
                        	itr=0
                        	token=$((token+1))
-                       	echo $(date) $token >> /users/aakashsh/tokens
+                       	echo $(date) $token >> ${HOME}/tokens
                	fi
 	fi
 	if [ "$container" ]
@@ -46,12 +48,12 @@ do
 			if (( usage >= 80 ))
 			then
 				token=$((token-2))
-				echo $(date) $token >> /users/aakashsh/tokens
+				echo $(date) $token >> ${HOME}/tokens
 				sleep 25
 			elif (( usage >= 40 ))
 			then
 				token=$((token-1))
-				echo $(date) $token >> /users/aakashsh/tokens
+				echo $(date) $token >> ${HOME}/tokens
 				sleep 25
 		
 			fi
