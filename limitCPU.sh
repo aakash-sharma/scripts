@@ -12,63 +12,52 @@ do
 	let "usage=$cmd" 
 	echo $(date) $usage >> /users/aakashsh/cpu_usage
 	
-	if [ -z "$container" ]
-	then	
-		if (( usage <= 20 ))
-		then
-			itr=$((itr + 10))
-		
-			if ((itr >= 60))
-			then
-				itr=0
-				token=$((token+1))
-				echo $(date) $token >> /users/aakashsh/tokens
-			fi
-		elif (( usage <= 40 ))
-        	then
-                	itr=$((itr + 5))
+	if (( usage <= 10 ))
+	then
+		itr=$((itr + 2))
 
-                	if (( itr >= 60 ))
-                	then
-                        	itr=0
-                        	token=$((token+1))
-                        	echo $(date) $token >> /users/aakashsh/tokens
-                	fi
+		if ((itr >= 60))
+		then
+			itr=0
+			token=$((token+1))
+			echo $(date) $token >> /users/aakashsh/tokens
 		fi
-	else
-		if [ $token -ne 0 ]
+	elif (( usage <= 30 ))
+       	then
+               	itr=$((itr + 1))
+
+               	if (( itr >= 60 ))
+               	then
+                       	itr=0
+                       	token=$((token+1))
+                       	echo $(date) $token >> /users/aakashsh/tokens
+               	fi
+	fi
+	if [ "$container" ]
+	then
+		if [ $token -gt 1 ]
 		then
 			echo $(date) $container
 			lim=$(ps -ef | grep cpulimit | grep -v "grep" | awk '{print $2}')
 			for pid in $lim; do
 				kill -9 $pid
 			done
-				
 
-			if (( usage >= 40 ))
+			if (( usage >= 80 ))
+			then
+				token=$((token-2))
+				echo $(date) $token >> /users/aakashsh/tokens
+				sleep 25
+			elif (( usage >= 40 ))
 			then
 				token=$((token-1))
 				echo $(date) $token >> /users/aakashsh/tokens
-				sleep 30
-			elif (( usage >= 20 ))
-			then
-				token=$((token-1))
-				echo $(date) $token >> /users/aakashsh/tokens
-				sleep 60
-			else
-				echo $(date) "container not consuming CPU"
-				itr=$((itr + 10))
-				if ((itr >= 60))
-				then
-					itr=0
-					token=$((token+1))
-					echo $(date) $token >> /users/aakashsh/tokens
-				fi
+				sleep 25
 		
 			fi
 	
 		else
-			echo $(date) "Limiting rate"
+			echo $(date) "Limiting CPU"
 			lim=$(ps -ef | grep cpulimit | grep -v "grep" | awk '{print $2}')
 			for pid in $lim; do
 				kill -9 $pid
@@ -77,7 +66,7 @@ do
 				echo $(date) $pid
 				cpulimit -p $pid -l 35 &
 			done
-			sleep 30
+			sleep 25
 		fi
 	fi
 done
