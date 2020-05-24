@@ -17,9 +17,9 @@ URI='http://0.0.0.0:8188/ws/v1/timeline/'
 DagProperties = ('dagName',
                  'dagId',
                  'applicationId',
+                 'vertexIds',
                  'startTime',
                  'endTime',
-                 'vertexIds',
                  'numSucceededTasks',
                  'status')
 
@@ -29,10 +29,10 @@ VertexProperties = ('vertexId',
                   'applicationId',
                   'taskId',
                   'status',
+                  'numTasks',
                   'startTime',
                   'endTime',
                   'initTime',
-                  'numTasks',
                   'RACK_LOCAL_TASKS',
                   'FILE_BYTES_READ',
                   'FILE_BYTES_WRITTEN',
@@ -132,8 +132,6 @@ def processVertex():
 
 def is_number(s):
     try:
-        if type(s) is list:
-            return False
         float(s)
         return True
     except ValueError:
@@ -142,6 +140,8 @@ def is_number(s):
 def saveToXLS(dagResults, vertexResults, startedOn):
     style = xlwt.XFStyle()
     style.num_format_str = '#,###0.00'
+    wrap_format = xlwt.XFStyle()
+    wrap_format.text_wrap = True
     row_list = []
     row_list2 = []
     row_list.append(DagProperties)
@@ -165,7 +165,9 @@ def saveToXLS(dagResults, vertexResults, startedOn):
             value = column[item]
             if value == None:
                 value = 0
-            if is_number(value):
+            if type(value) is list:
+                worksheet1.write(item, i, ',\n'.join(value), style=wrap_format)
+            elif is_number(value):
                 worksheet1.write(item, i, value, style=style)
             else:
                 worksheet1.write(item, i, value)
@@ -178,7 +180,9 @@ def saveToXLS(dagResults, vertexResults, startedOn):
             value = column[item]
             if value == None:
                 value = 0
-            if is_number(value):
+            if type(value) is list:
+                worksheet2.write(item, i, ',\n'.join(value), style=wrap_format)
+            elif is_number(value):
                 worksheet2.write(item, i, value, style=style)
             else:
                 worksheet2.write(item, i, value)
