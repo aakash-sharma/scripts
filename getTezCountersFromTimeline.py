@@ -119,7 +119,7 @@ def processDags():
         try:
             wget.download(URI + 'TEZ_DAG_ID/', 'dags.json')
         except:
-            print('Unable to fetch timeline server endpoint {}', URI + 'TEZ_DAG_ID/')
+            print(f"Unable to fetch timeline server endpoint {URI}TEZ_DAG_ID/")
             pass
             return
     print("Processing dags.json\n")
@@ -147,7 +147,7 @@ def processVertex():
         try:
             wget.download(URI + 'TEZ_VERTEX_ID/', 'vertex.json')
         except:
-            print('Unable to fetch timeline server endpoint {}', URI + 'TEZ_VERTEX_ID/')
+            print(f"Unable to fetch timeline server endpoint {URI}TEZ_VERTEX_ID/")
             pass
             return
     print("Processing vertex.json\n")
@@ -231,28 +231,25 @@ def saveToXLS(dagResults, vertexResults, startedOn):
     workbook.save('report-' + startedOn + '.xls')
 
 def main():
-    startedOn = ""
+    startedOn = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
+    workDir = os.getcwd()
 
-    if len(sys.argv) <= 1:
-        print("Please specify the work dir!")
-        return
+    if len(sys.argv) > 1:
+        resultDir = sys.argv[1]
 
-    resultDir = sys.argv[1]
+        if len(sys.argv) >= 3:
+            startedOn = sys.argv[2]
 
-    if len(sys.argv) >= 3:
-        startedOn = sys.argv[2]
+        print(startedOn)
+
+        workDir = resultDir + os.path.sep + startedOn
+        exists = os.path.isdir(workDir)
+        if not exists:
+            os.mkdir(workDir)
+        else:
+            print(f"Using preexisting data present in {workDir}")
     else:
-        startedOn = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
-
-    print(startedOn)
-
-    path = os.getcwd()
-    workDir = resultDir + os.path.sep + startedOn
-    exists = os.path.isdir(workDir)
-    if not exists:
-        os.mkdir(workDir)
-    else:
-        print("Using preexisting data present in {}", workDir)
+            print(f"Will attempt to use preexisting data in {workDir}")
 
     os.chdir(workDir)
     dagResults = processDags()
