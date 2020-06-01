@@ -13,6 +13,7 @@ from shutil import copy
 
 DagProperties = ('dagName',
                  'dagId',
+                 'status',
                  'applicationId',
                  'vertexIds',
                  'vertexNameIdMapping',
@@ -25,8 +26,7 @@ DagProperties = ('dagName',
                  'numCompletedTasks',
                  'numSucceededTasks',
                  'numFailedTasks',
-                 'numKilledTasks',
-                 'status')
+                 'numKilledTasks')
 
 DagExtraInfoProperties = ('dagName',
                   'dagId',
@@ -107,9 +107,9 @@ DagExtraInfoProperties = ('dagName',
 
 VertexProperties = ('vertexId',
                   'vertexName',
+                  'status',
                   'dagId',
                   'applicationId',
-                  'status',
                   'numTasks',
                   'startTime',
                   'endTime',
@@ -201,7 +201,7 @@ def processDag():
     dagProperties = [None] * len(DagProperties)
     exists = checkFileExists('dag.json')
     if exists:
-        print("dag.json already exists, using the existing file")
+        print("dag.json exists")
     else:
         print("dag.json does not exist skipping ...")
         return dagResults
@@ -211,19 +211,21 @@ def processDag():
     dagProperties[DagProperties.index('dagName')] = dagJson['dag']['primaryfilters']['dagName']
     dagProperties[DagProperties.index('dagId')] = dagJson['dag']['entity']
     dagProperties[DagProperties.index('applicationId')] = dagJson['dag']['primaryfilters']['applicationId']
-    dagProperties[DagProperties.index('startTime')] = dagJson['dag']['otherinfo']['startTime']
-    dagProperties[DagProperties.index('endTime')] = dagJson['dag']['otherinfo']['endTime']
-    dagProperties[DagProperties.index('initTime')] = dagJson['dag']['otherinfo']['initTime']
-    dagProperties[DagProperties.index('numKilledTaskAttempts')] = dagJson['dag']['otherinfo']['numKilledTaskAttempts']
-    dagProperties[DagProperties.index('numFailedTaskAttempts')] = dagJson['dag']['otherinfo']['numFailedTaskAttempts']
-    dagProperties[DagProperties.index('numCompletedTasks')] = dagJson['dag']['otherinfo']['numCompletedTasks']
-    dagProperties[DagProperties.index('numSucceededTasks')] = dagJson['dag']['otherinfo']['numSucceededTasks']
-    dagProperties[DagProperties.index('numFailedTasks')] = dagJson['dag']['otherinfo']['numFailedTasks']
-    dagProperties[DagProperties.index('numKilledTasks')] = dagJson['dag']['otherinfo']['numKilledTasks']
-    dagProperties[DagProperties.index('timeTaken')] = dagJson['dag']['otherinfo']['timeTaken']
-    dagProperties[DagProperties.index('status')] = dagJson['dag']['primaryfilters']['status']
-    dagProperties[DagProperties.index('vertexIds')] = dagJson['dag']['relatedentities']['TEZ_VERTEX_ID']
-    dagProperties[DagProperties.index('vertexNameIdMapping')] = dagJson['dag']['otherinfo']['vertexNameIdMapping']
+    dagProperties[DagProperties.index('status')] = dagJson['dag']['otherinfo']['status']
+    if 'RUNNING' != dagJson['dag']['otherinfo']['status']:
+        dagProperties[DagProperties.index('startTime')] = dagJson['dag']['otherinfo']['startTime']
+        dagProperties[DagProperties.index('endTime')] = dagJson['dag']['otherinfo']['endTime']
+        dagProperties[DagProperties.index('initTime')] = dagJson['dag']['otherinfo']['initTime']
+        dagProperties[DagProperties.index('numKilledTaskAttempts')] = dagJson['dag']['otherinfo']['numKilledTaskAttempts']
+        dagProperties[DagProperties.index('numFailedTaskAttempts')] = dagJson['dag']['otherinfo']['numFailedTaskAttempts']
+        dagProperties[DagProperties.index('numCompletedTasks')] = dagJson['dag']['otherinfo']['numCompletedTasks']
+        dagProperties[DagProperties.index('numSucceededTasks')] = dagJson['dag']['otherinfo']['numSucceededTasks']
+        dagProperties[DagProperties.index('numFailedTasks')] = dagJson['dag']['otherinfo']['numFailedTasks']
+        dagProperties[DagProperties.index('numKilledTasks')] = dagJson['dag']['otherinfo']['numKilledTasks']
+        dagProperties[DagProperties.index('timeTaken')] = dagJson['dag']['otherinfo']['timeTaken']
+        dagProperties[DagProperties.index('status')] = dagJson['dag']['primaryfilters']['status']
+        dagProperties[DagProperties.index('vertexIds')] = dagJson['dag']['relatedentities']['TEZ_VERTEX_ID']
+        dagProperties[DagProperties.index('vertexNameIdMapping')] = dagJson['dag']['otherinfo']['vertexNameIdMapping']
     dagResults.append(dagProperties.copy())
     return dagResults
 
@@ -232,7 +234,7 @@ def processDagExtraInfo():
     dagExtraInfoProperties = [None] * len(DagExtraInfoProperties)
     exists = checkFileExists('dag-extra-info.json')
     if exists:
-        print("dag-extra-info.json already exists, using the existing file")
+        print("dag-extra-info.json exists")
     else:
         print("dag-extra-info.json does not exist skipping ...")
         return dagExtraInfoResults
@@ -251,10 +253,9 @@ def processDagExtraInfo():
 
 def processVertex():
     vertexResults = []
-    vertexProperties = [None] * len(VertexProperties)
     exists = checkFileExists('vertices_part_0.json')
     if exists:
-        print("vertices_part_0.json already exists, using the existing file")
+        print("vertices_part_0.json exists")
     else:
         print("vertices_part_0.json does not exist skipping ...")
         return vertexResults
@@ -262,27 +263,29 @@ def processVertex():
     with open('vertices_part_0.json') as fd:
         vertexJson = json.load(fd)
     for idx in range(len(vertexJson['vertices'])):
+        vertexProperties = [None] * len(VertexProperties)
         vertexProperties[VertexProperties.index('vertexId')] = vertexJson['vertices'][idx]['entity'] 
         vertexProperties[VertexProperties.index('vertexName')] = vertexJson['vertices'][idx]['otherinfo']['vertexName']
         vertexProperties[VertexProperties.index('dagId')] = vertexJson['vertices'][idx]['primaryfilters']['TEZ_DAG_ID']
         vertexProperties[VertexProperties.index('applicationId')] = vertexJson['vertices'][idx]['primaryfilters']['applicationId']
-        vertexProperties[VertexProperties.index('status')] = vertexJson['vertices'][idx]['primaryfilters']['status']
-        vertexProperties[VertexProperties.index('startTime')] = vertexJson['vertices'][idx]['otherinfo']['startTime']
-        vertexProperties[VertexProperties.index('endTime')] = vertexJson['vertices'][idx]['otherinfo']['endTime']
-        vertexProperties[VertexProperties.index('initTime')] = vertexJson['vertices'][idx]['otherinfo']['initTime']
-        vertexProperties[VertexProperties.index('numTasks')] = vertexJson['vertices'][idx]['otherinfo']['numTasks']
-        if 'counters' not in vertexJson['vertices'][idx]['otherinfo'].keys():
-           continue
-        if 'counterGroups' not in vertexJson['vertices'][idx]['otherinfo']['counters'].keys():
-            continue
-        for jdx in range(len(vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'])):
-            for zdx in range(len(vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'])):
-                if vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'] in VertexProperties:
-                    vertexProperties[VertexProperties.index(vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'])] = vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
-                elif "RECORDS_IN" in vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
-                    vertexProperties[VertexProperties.index('RECORDS_IN')] = vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
-                elif "RECORDS_OUT" in vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
-                    vertexProperties[VertexProperties.index('RECORDS_OUT')] = vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+        vertexProperties[VertexProperties.index('status')] = vertexJson['vertices'][idx]['otherinfo']['status']
+        if 'RUNNING' != vertexJson['vertices'][idx]['otherinfo']['status']:
+            vertexProperties[VertexProperties.index('startTime')] = vertexJson['vertices'][idx]['otherinfo']['startTime']
+            vertexProperties[VertexProperties.index('endTime')] = vertexJson['vertices'][idx]['otherinfo']['endTime']
+            vertexProperties[VertexProperties.index('initTime')] = vertexJson['vertices'][idx]['otherinfo']['initTime']
+            vertexProperties[VertexProperties.index('numTasks')] = vertexJson['vertices'][idx]['otherinfo']['numTasks']
+            if 'counters' not in vertexJson['vertices'][idx]['otherinfo'].keys():
+                continue
+            if 'counterGroups' not in vertexJson['vertices'][idx]['otherinfo']['counters'].keys():
+                continue
+            for jdx in range(len(vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'])):
+                for zdx in range(len(vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'])):
+                    if vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'] in VertexProperties:
+                        vertexProperties[VertexProperties.index(vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'])] = vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+                    elif "RECORDS_IN" in vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
+                        vertexProperties[VertexProperties.index('RECORDS_IN')] = vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+                    elif "RECORDS_OUT" in vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
+                        vertexProperties[VertexProperties.index('RECORDS_OUT')] = vertexJson['vertices'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
         vertexResults.append(vertexProperties.copy())
     return vertexResults
 
@@ -390,17 +393,14 @@ def main():
         if not exists:
             os.mkdir(workDir)
         else:
-            print(f"Using preexisting data present in {workDir}")
+            print(f"Will attempt to use preexisting data in {workDir}")
     else:
             print(f"Will attempt to use preexisting data in {workDir}")
     
     os.chdir(workDir)
     dagResults = processDag()
-    #pprint(dagResults)
     dagExtraInfoResults = processDagExtraInfo()
-    #print(dagExtraInfoResults)
     vertexResults = processVertex()
-    #pprint(vertexResults)
     saveToXLS(dagResults, dagExtraInfoResults, vertexResults, startedOn)
 
 if __name__ == "__main__":
