@@ -14,22 +14,19 @@ from shutil import copy
 
 URI='http://0.0.0.0:8188/ws/v1/timeline/'
 
-DagProperties = ('dagName',
-                 'dagId',
+DagProperties = ('dagId',
                  'status',
                  'applicationId',
                  'vertexIds',
-                 'vertexNameIdMapping',
                  'startTime',
                  'endTime',
                  'initTime',
                  'timeTaken',
-                 'numFailedTaskAttempts',
-                 'numKilledTaskAttempts',
-                 'numCompletedTasks',
-                 'numSucceededTasks',
-                 'numFailedTasks',
-                 'numKilledTasks')
+                 'spilledRecords',
+                 'fileBytesRead',
+                 'fileBytesWritten',
+                 'CPUms',
+                 'GCms')
 
 VertexProperties = ('vertexId',
                   'vertexName',
@@ -123,8 +120,11 @@ def checkFileExists(fileName):
         return False
 
 def processDags():
+  
     dagResults = []
+    
     exists = checkFileExists('dags.json')
+    
     if exists:
         print("dags.json already exists, using the existing file")
     else:
@@ -134,42 +134,65 @@ def processDags():
             print(f"Unable to fetch timeline server endpoint {URI}TEZ_DAG_ID/")
             pass
             return
+
     print("Processing dags.json\n")
+
     with open('dags.json') as fd:
         dagJson = json.load(fd)
+    
+    exists = checkFileExists('dags_moreInfo.json')
+   
+    if exists:
+        print("dags_moreInfo.jason already exists, using the existing file")
+    else:
+        try:
+            wget.download(URI + 'TEZ_DAG_EXTRA_INFO/', 'dags_moreInfo.json')
+        except:
+            print(f"Unable to fetch timeline server endpoint {URI}TEZ_DAG_EXTRA_INFO/")
+            pass
+            return
+    print("Proceesing dags_moreInfo.json")
+   
+    with open('dags_moreInfo.json') as dagfd:
+        dagJson2 = json.load(dagfd)
+    
     for idx in range(len(dagJson['entities'])):
+        if dagJson['entities'][idx]['entity'] != dagJson2['entities'][idx]['entity']:
+            print("{dagJson['entities'][idx]['entity']} doesnt match {dagJson2['entities'][idx]['entity']} at index {idx}")
+            continue
         dagProperties = [None] * len(DagProperties)
-        dagProperties[DagProperties.index('dagName')] = dagJson['entities'][idx]['primaryfilters']['dagName']
         dagProperties[DagProperties.index('dagId')] = dagJson['entities'][idx]['entity']
         dagProperties[DagProperties.index('status')] = dagJson['entities'][idx]['otherinfo']['status']
         dagProperties[DagProperties.index('applicationId')] = dagJson['entities'][idx]['primaryfilters']['applicationId']
-
-        filename = dagProperties[DagProperties.index('dagId')] + '.json'
-        exists = checkFileExists(filename)
-        if exists:
-            print("{filename} already exists, using the existing file")
-        else:
-            try:
-                wget.download(URI + 'TEZ_DAG_EXTRA_INFO/', filename)
-            except:
-                print(f"Unable to fetch timeline server endpoint {URI}TEZ_DAG_EXTRA_INFO/")
-                pass
-                return
 
         if 'SUCCEEDED' == dagJson['entities'][idx]['otherinfo']['status']:
             dagProperties[DagProperties.index('startTime')] = dagJson['entities'][idx]['otherinfo']['startTime']
             dagProperties[DagProperties.index('endTime')] = dagJson['entities'][idx]['otherinfo']['endTime']
             dagProperties[DagProperties.index('initTime')] = dagJson['entities'][idx]['otherinfo']['initTime']
-            dagProperties[DagProperties.index('numKilledTaskAttempts')] = dagJson['entities'][idx]['otherinfo']['numKilledTaskAttempts']
-            dagProperties[DagProperties.index('numFailedTaskAttempts')] = dagJson['entities'][idx]['otherinfo']['numFailedTaskAttempts']
-            dagProperties[DagProperties.index('numCompletedTasks')] = dagJson['entities'][idx]['otherinfo']['numCompletedTasks']
-            dagProperties[DagProperties.index('numSucceededTasks')] = dagJson['entities'][idx]['otherinfo']['numSucceededTasks']
-            dagProperties[DagProperties.index('numFailedTasks')] = dagJson['entities'][idx]['otherinfo']['numFailedTasks']
-            dagProperties[DagProperties.index('numKilledTasks')] = dagJson['entities'][idx]['otherinfo']['numKilledTasks']
             dagProperties[DagProperties.index('timeTaken')] = dagJson['entities'][idx]['otherinfo']['timeTaken']
             dagProperties[DagProperties.index('vertexIds')] = dagJson['entities'][idx]['relatedentities']['TEZ_VERTEX_ID']
-            dagProperties[DagProperties.index('vertexNameIdMapping')] = dagJson['entities'][idx]['otherinfo']['vertexNameIdMapping']
+
+            itr = dagJson2['entities'][idx]['otherinfo']['counters']['counterGroups']
+
+            for i in range(len(itr)):
+                if itr[i]['counterGroupName'] == 'org.apache.tez.common.counters.TaskCounter':
+                    for j in range(len(itr[i]['counters'])):
+                        if itr[i]['counters'][j]['counterName'] == 'SPILLED_RECORDS':
+                            dagProperties[DagProperties.index('spilledRecords')] = itr[i]['counters'][j]['counterValue']
+                        if itr[i]['counters'][j]['counterName'] == 'CPU_MILLISECONDS':
+                            dagProperties[DagProperties.index('CPUms')] = itr[i]['counters'][j]['counterValue']
+                        if itr[i]['counters'][j]['counterName'] == 'GC_TIME_MILLIS':
+                            dagProperties[DagProperties.index('GCms')] = itr[i]['counters'][j]['counterValue']
+
+                if itr[i]['counterGroupName'] == 'org.apache.tez.common.counters.FileSystemCounter':
+                    for j in range(len(itr[i]['counters'])):
+                        if itr[i]['counters'][j]['counterName'] == 'FILE_BYTES_READ':
+                            dagProperties[DagProperties.index('fileBytesRead')] = itr[i]['counters'][j]['counterValue']
+                        if itr[i]['counters'][j]['counterName'] == 'FILE_BYTES_WRITTEN':
+                            dagProperties[DagProperties.index('fileBytesWritten')] = itr[i]['counters'][j]['counterValue']
+
         dagResults.append(dagProperties.copy())
+        
     return dagResults
 
 def processVertex():
@@ -194,7 +217,7 @@ def processVertex():
         vertexProperties[VertexProperties.index('dagId')] = vertexJson['entities'][idx]['primaryfilters']['TEZ_DAG_ID']
         vertexProperties[VertexProperties.index('applicationId')] = vertexJson['entities'][idx]['primaryfilters']['applicationId']
         vertexProperties[VertexProperties.index('status')] = vertexJson['entities'][idx]['otherinfo']['status']
-        if 'RUNNING' != vertexJson['entities'][idx]['otherinfo']['status']:
+        if 'SUCCEEDED' == vertexJson['entities'][idx]['otherinfo']['status']:
             vertexProperties[VertexProperties.index('startTime')] = vertexJson['entities'][idx]['otherinfo']['startTime']
             vertexProperties[VertexProperties.index('endTime')] = vertexJson['entities'][idx]['otherinfo']['endTime']
             vertexProperties[VertexProperties.index('initTime')] = vertexJson['entities'][idx]['otherinfo']['initTime']
