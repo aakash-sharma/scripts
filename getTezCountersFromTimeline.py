@@ -143,7 +143,20 @@ def processDags():
         dagProperties[DagProperties.index('dagId')] = dagJson['entities'][idx]['entity']
         dagProperties[DagProperties.index('status')] = dagJson['entities'][idx]['otherinfo']['status']
         dagProperties[DagProperties.index('applicationId')] = dagJson['entities'][idx]['primaryfilters']['applicationId']
-        if 'RUNNING' != dagJson['entities'][idx]['otherinfo']['status']:
+
+        filename = dagProperties[DagProperties.index('dagId')] + '.json'
+        exists = checkFileExists(filename)
+        if exists:
+            print("{filename} already exists, using the existing file")
+        else:
+            try:
+                wget.download(URI + 'TEZ_DAG_EXTRA_INFO/', filename)
+            except:
+                print(f"Unable to fetch timeline server endpoint {URI}TEZ_DAG_EXTRA_INFO/")
+                pass
+                return
+
+        if 'SUCCEEDED' == dagJson['entities'][idx]['otherinfo']['status']:
             dagProperties[DagProperties.index('startTime')] = dagJson['entities'][idx]['otherinfo']['startTime']
             dagProperties[DagProperties.index('endTime')] = dagJson['entities'][idx]['otherinfo']['endTime']
             dagProperties[DagProperties.index('initTime')] = dagJson['entities'][idx]['otherinfo']['initTime']
@@ -266,25 +279,23 @@ def saveToXLS(dagResults, vertexResults, startedOn):
 
 def main():
     startedOn = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
-    workDir = os.getcwd()
+    print(startedOn)
 
     if len(sys.argv) > 1:
-        resultDir = sys.argv[1]
 
         if len(sys.argv) >= 3:
-            startedOn = sys.argv[2]
+            workDir = sys.argv[2]
+            print(f"Will attempt to use preexisting data in {workDir}")
 
-        print(startedOn)
-
-        workDir = resultDir + os.path.sep + startedOn
-        exists = os.path.isdir(workDir)
-        if not exists:
-            os.mkdir(workDir)
         else:
-            print(f"Will attempt to use preexisting data in {workDir}")
+            workDir = sys.argv[1] + os.path.sep + startedOn
     else:
-            print(f"Will attempt to use preexisting data in {workDir}")
+        workDir = startedOn
 
+    exists = os.path.isdir(workDir)
+    if not exists:
+            os.mkdir(workDir)
+    
     os.chdir(workDir)
     dagResults = processDags()
     vertexResults = processVertex()
