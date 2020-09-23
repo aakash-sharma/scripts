@@ -33,10 +33,11 @@ VertexProperties = ('vertexId',
                   'status',
                   'dagId',
                   'applicationId',
-                  'numTasks',
+                  'numSucceededTasks',
                   'startTime',
                   'endTime',
                   'initTime',
+                  'avgTaskCPUutil',
                   'FILE_BYTES_READ',
                   'FILE_BYTES_WRITTEN',
                   'FILE_READ_OPS',
@@ -111,6 +112,16 @@ VertexProperties = ('vertexId',
                   'RECORDS_IN',
                   'RECORDS_OUT',
                   'CREATED_FILES')
+
+TaskProperties = ('taskId',
+                'dagId',
+                'vertexId',
+                'vertexName',
+                'CPU_MILLISECONDS',
+                'TASK_STARTED',
+                'TASK_FINISHED',
+                'CPU_UTIL')
+
 
 def checkFileExists(fileName):
     exists = os.path.isfile(fileName)
@@ -221,7 +232,7 @@ def processVertex():
             vertexProperties[VertexProperties.index('startTime')] = vertexJson['entities'][idx]['otherinfo']['startTime']
             vertexProperties[VertexProperties.index('endTime')] = vertexJson['entities'][idx]['otherinfo']['endTime']
             vertexProperties[VertexProperties.index('initTime')] = vertexJson['entities'][idx]['otherinfo']['initTime']
-            vertexProperties[VertexProperties.index('numTasks')] = vertexJson['entities'][idx]['otherinfo']['numTasks']
+            vertexProperties[VertexProperties.index('numSucceededTasks')] = vertexJson['entities'][idx]['otherinfo']['numSucceededTasks']
             if 'counters' not in vertexJson['entities'][idx]['otherinfo'].keys():
                 continue
             if 'counterGroups' not in vertexJson['entities'][idx]['otherinfo']['counters'].keys():
@@ -234,6 +245,59 @@ def processVertex():
                         vertexProperties[VertexProperties.index('RECORDS_IN')] = vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
                     elif "RECORDS_OUT" in vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
                         vertexProperties[VertexProperties.index('RECORDS_OUT')] = vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+
+            taskResults = []
+            for task in vertexJson['entities'][idx]['relatedentities']['TEZ_TASK_ID']:
+                exists = checkFileExists(task + '.json')
+                if exists:
+                   print(f"{task}.json already exists, using the existing file")
+                else:
+                    try:
+                        wget.download(URI + 'TEZ_TASK_ID/' + task, task + '.json')
+                    except:
+                        print(f"Unable to fetch timeline server endpoint {URI}TEZ_TASK_ID/{task}")
+                        pass
+                    continue
+
+                print(f"Processing {task}.json\n")
+
+                with open(f'{task}.json') as fd2:
+                    taskJson = json.load(fd2)
+
+                    if taskJson['primaryfilters']['status'][0] != 'SUCCEEDED':
+                        continue
+
+                    taskProperties = [None] * len(TaskProperties)
+                    taskProperties[TaskProperties.index('CPU_MILLISECONDS')] = 0
+
+
+                    taskProperties[TaskProperties.index('taskId')] = task
+                    taskProperties[TaskProperties.index('vertexId')] = vertexProperties[VertexProperties.index('vertexId')]
+                    taskProperties[TaskProperties.index('dagId')] = vertexProperties[VertexProperties.index('dagId')]
+
+
+                    for jdx in range(len(taskJson['otherinfo']['counters']['counterGroups'])):
+                        if taskJson['otherinfo']['counters']['counterGroups'][jdx]['counterGroupName'] == 'org.apache.tez.common.counters.TaskCounter':
+                            for zdx in range(len(taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'])):
+                                if taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'] == 'GC_TIME_MILLIS':
+                                    taskProperties[TaskProperties.index('CPU_MILLISECONDS')] += taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+                                if taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'] == 'CPU_MILLISECONDS':
+                                    taskProperties[TaskProperties.index('CPU_MILLISECONDS')] += taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+                    
+                    for jdx in range(len(taskJson['events'])):
+                        if taskJson['events'][jdx]['eventtype'] == 'TASK_FINISHED':
+                            taskProperties[TaskProperties.index('TASK_FINISHED')] = taskJson['events'][jdx]['timestamp']
+                        if taskJson['events'][jdx]['eventtype'] == 'TASK_STARTED':
+                            taskProperties[TaskProperties.index('TASK_STARTED')] = taskJson['events'][jdx]['timestamp']
+                            
+
+                    taskProperties[TaskProperties.index('CPU_UTIL')] = taskProperties[TaskProperties.index('CPU_MILLISECONDS')] / (taskProperties[TaskProperties.index('TASK_FINISHED')] - taskProperties[TaskProperties.index('TASK_STARTED')]) * 100
+
+        
+                    taskResults.append(taskProperties.copy())
+
+            vertexProperties[VertexProperties.index('avgTaskCPUutil')] = sum(taskResults[i][TaskProperties.index('CPU_UTIL')] for i in range(len(taskResults))) / vertexProperties[VertexProperties.index('numSucceededTasks')]
+
         vertexResults.append(vertexProperties.copy())
     return vertexResults
 
@@ -305,13 +369,14 @@ def main():
     print(startedOn)
 
     if len(sys.argv) > 1:
+        workDir = sys.argv[1]
 
-        if len(sys.argv) >= 3:
-            workDir = sys.argv[2]
-            print(f"Will attempt to use preexisting data in {workDir}")
-
-        else:
-            workDir = sys.argv[1] + os.path.sep + startedOn
+    #    if len(sys.argv) >= 3:
+    #        workDir = sys.argv[2]
+    #        print(f"Will attempt to use preexisting data in {workDir}")
+#
+#        else:
+#            workDir = sys.argv[1] + os.path.sep + startedOn
     else:
         workDir = startedOn
 
