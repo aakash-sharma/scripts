@@ -77,6 +77,11 @@ VertexProperties = ('vertexId',
                   'RECORDS_IN',
                   'RECORDS_OUT')
 
+FilteredVertexProperties = ('vertexName',
+                            'dagId',
+                              'avgTaskCPUutil',
+                            'spilledRecordsPerSec')
+
 TaskProperties = ('taskId',
                 'dagId',
                 'vertexId',
@@ -127,7 +132,7 @@ def processDags():
             pass
             return
     print("Proceesing dags_moreInfo.json")
-   
+  
     with open('dags_moreInfo.json') as dagfd:
         dagJson2 = json.load(dagfd)
     
@@ -265,6 +270,28 @@ def processVertex():
         vertexResults.append(vertexProperties.copy())
     return vertexResults
 
+def filterVertex(vertexResults):
+    filteredVertexResults = []
+
+    for idx in range(len(vertexResults)):
+        filteredVertexProperties = [None] * len(FilteredVertexProperties)
+        
+        filteredVertexProperties[FilteredVertexProperties.index('vertexName')] = vertexResults[idx][VertexProperties.index('vertexName')]
+        filteredVertexProperties[FilteredVertexProperties.index('dagId')] = vertexResults[idx][VertexProperties.index('dagId')]
+        filteredVertexProperties[FilteredVertexProperties.index('avgTaskCPUutil')] = vertexResults[idx][VertexProperties.index('avgTaskCPUutil')]
+        
+        if vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] == None:
+            vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
+        #if vertexResults[idx][VertexProperties.index('endTime')] == None:
+        #print( vertexResults[idx][VertexProperties.index('startTime')])
+        filteredVertexProperties[FilteredVertexProperties.index('spilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] / (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000 
+
+        filteredVertexResults.append(filteredVertexProperties.copy())
+
+    return filteredVertexResults
+
+
+
 def is_number(s):
     try:
         float(s)
@@ -272,26 +299,39 @@ def is_number(s):
     except ValueError:
         return False
 
-def saveToXLS(dagResults, vertexResults, startedOn):
+def saveToXLS(dagResults, vertexResults, filteredVertexResults, startedOn):
     style = xlwt.XFStyle()
     style.num_format_str = '#,###0.00'
     wrap_format = xlwt.XFStyle()
     wrap_format.text_wrap = True
     row_list = []
     row_list2 = []
+    row_list3 = []
+
     row_list.append(DagProperties)
     row_list2.append(VertexProperties)
+    row_list3.append(FilteredVertexProperties)
+
     for row in dagResults:
         for i in range(len(row)):
             if row[i] == None:
                 row[i] = 0
         row_list.append(row)
+
     for row in vertexResults:
         for i in range(len(row)):
             if row[i] == None:
                 row[i] = 0
         row_list2.append(row)
+
+    for row in filteredVertexResults:
+        for i in range(len(row)):
+            if row[i] == None:
+                row[i] = 0
+        row_list3.append(row)
+
     workbook = xlwt.Workbook()
+ 
     worksheet1 = workbook.add_sheet('Dags')
     column_list = zip(*row_list)
     i = 0
@@ -309,6 +349,7 @@ def saveToXLS(dagResults, vertexResults, startedOn):
             else:
                 worksheet1.write(item, i, value)
         i+=1
+
     worksheet2 = workbook.add_sheet('Vertex')
     column_list2 = zip(*row_list2)
     i = 0
@@ -326,6 +367,25 @@ def saveToXLS(dagResults, vertexResults, startedOn):
             else:
                 worksheet2.write(item, i, value)
         i+=1
+
+    worksheet3 = workbook.add_sheet('FilteredVertex')
+    column_list = zip(*row_list3)
+    i = 0
+    for column in column_list:
+        for item in range(len(column)):
+            value = column[item]
+            if value == None:
+                value = 0
+            if type(value) is dict:
+                worksheet3.write(item, i, ',\n'.join('{} : {}'.format(key, val) for key, val in value.items()), style=wrap_format)
+            elif type(value) is list:
+                worksheet3.write(item, i, ',\n'.join(value), style=wrap_format)
+            elif is_number(value):
+                worksheet3.write(item, i, value, style=style)
+            else:
+                worksheet3.write(item, i, value)
+        i+=1
+
     workbook.save('report-' + startedOn + '.xls')
 
 def main():
@@ -351,7 +411,9 @@ def main():
     os.chdir(workDir)
     dagResults = processDags()
     vertexResults = processVertex()
-    saveToXLS(dagResults, vertexResults, startedOn)
+    filteredVertexResults = filterVertex(vertexResults)
+
+    saveToXLS(dagResults, vertexResults, filteredVertexResults, startedOn)
 
 if __name__ == "__main__":
     main()
