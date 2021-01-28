@@ -28,6 +28,10 @@ DagProperties = ('dagId',
                  'CPUms',
                  'GCms')
 
+FilteredDagProperties = ('dagId',
+                         'CPUaverage',
+                         'spilledRecordsPerSec')
+
 VertexProperties = ('vertexId',
                   'vertexName',
                   'status',
@@ -79,7 +83,7 @@ VertexProperties = ('vertexId',
 
 FilteredVertexProperties = ('vertexName',
                             'dagId',
-                              'avgTaskCPUutil',
+                            'avgTaskCPUutil',
                             'spilledRecordsPerSec')
 
 TaskProperties = ('taskId',
@@ -175,6 +179,34 @@ def processDags():
         
     return dagResults
 
+def filterDags(dagResults):
+    filteredDagResults = []
+
+    for idx in range(len(dagResults)):
+        filteredDagProperties = [None] * len(FilteredDagProperties)
+
+        if dagResults[idx][DagProperties.index('timeTaken')] == None:
+            continue
+        
+        filteredDagProperties[FilteredDagProperties.index('dagId')] = dagResults[idx][DagProperties.index('dagId')]
+        
+        if dagResults[idx][DagProperties.index('CPUms')] == None:
+            dagResults[idx][DagProperties.index('CPUms')] = 0
+
+        if dagResults[idx][DagProperties.index('GCms')] == None:
+            dagResults[idx][DagProperties.index('GCms')] = 0
+
+        filteredDagProperties[FilteredDagProperties.index('CPUaverage')] = (dagResults[idx][DagProperties.index('CPUms')] + dagResults[idx][DagProperties.index('GCms')]) / dagResults[idx][DagProperties.index('timeTaken')] * 100
+        
+        if dagResults[idx][DagProperties.index('spilledRecords')] == None:
+            dagResults[idx][DagProperties.index('spilledRecords')] = 0
+        
+        filteredDagProperties[FilteredDagProperties.index('spilledRecordsPerSec')] = dagResults[idx][DagProperties.index('spilledRecords')] / dagResults[idx][DagProperties.index('timeTaken')] * 1000
+
+        filteredDagResults.append(filteredDagProperties.copy())
+
+    return filteredDagResults
+  
 def processVertex():
     vertexResults = []
     exists = checkFileExists('vertex.json')
@@ -284,6 +316,8 @@ def filterVertex(vertexResults):
             vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
         #if vertexResults[idx][VertexProperties.index('endTime')] == None:
         #print( vertexResults[idx][VertexProperties.index('startTime')])
+        if vertexResults[idx][VertexProperties.index('endTime')] == None or vertexResults[idx][VertexProperties.index('startTime')] == None:
+            continue
         filteredVertexProperties[FilteredVertexProperties.index('spilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] / (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000 
 
         filteredVertexResults.append(filteredVertexProperties.copy())
@@ -299,7 +333,7 @@ def is_number(s):
     except ValueError:
         return False
 
-def saveToXLS(dagResults, vertexResults, filteredVertexResults, startedOn):
+def saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn):
     style = xlwt.XFStyle()
     style.num_format_str = '#,###0.00'
     wrap_format = xlwt.XFStyle()
@@ -307,10 +341,12 @@ def saveToXLS(dagResults, vertexResults, filteredVertexResults, startedOn):
     row_list = []
     row_list2 = []
     row_list3 = []
+    row_list4 = []
 
     row_list.append(DagProperties)
     row_list2.append(VertexProperties)
-    row_list3.append(FilteredVertexProperties)
+    row_list3.append(FilteredDagProperties)
+    row_list4.append(FilteredVertexProperties)
 
     for row in dagResults:
         for i in range(len(row)):
@@ -324,11 +360,17 @@ def saveToXLS(dagResults, vertexResults, filteredVertexResults, startedOn):
                 row[i] = 0
         row_list2.append(row)
 
-    for row in filteredVertexResults:
+    for row in filteredDagResults:
         for i in range(len(row)):
             if row[i] == None:
                 row[i] = 0
         row_list3.append(row)
+
+    for row in filteredVertexResults:
+        for i in range(len(row)):
+            if row[i] == None:
+                row[i] = 0
+        row_list4.append(row)
 
     workbook = xlwt.Workbook()
  
@@ -368,7 +410,7 @@ def saveToXLS(dagResults, vertexResults, filteredVertexResults, startedOn):
                 worksheet2.write(item, i, value)
         i+=1
 
-    worksheet3 = workbook.add_sheet('FilteredVertex')
+    worksheet3 = workbook.add_sheet('FilteredDag')
     column_list = zip(*row_list3)
     i = 0
     for column in column_list:
@@ -386,6 +428,24 @@ def saveToXLS(dagResults, vertexResults, filteredVertexResults, startedOn):
                 worksheet3.write(item, i, value)
         i+=1
 
+    worksheet4 = workbook.add_sheet('FilteredVertex')
+    column_list = zip(*row_list4)
+    i = 0
+    for column in column_list:
+        for item in range(len(column)):
+            value = column[item]
+            if value == None:
+                value = 0
+            if type(value) is dict:
+                worksheet4.write(item, i, ',\n'.join('{} : {}'.format(key, val) for key, val in value.items()), style=wrap_format)
+            elif type(value) is list:
+                worksheet4.write(item, i, ',\n'.join(value), style=wrap_format)
+            elif is_number(value):
+                worksheet4.write(item, i, value, style=style)
+            else:
+                worksheet4.write(item, i, value)
+        i+=1
+
     workbook.save('report-' + startedOn + '.xls')
 
 def main():
@@ -394,6 +454,7 @@ def main():
 
     if len(sys.argv) > 1:
         workDir = sys.argv[1]
+        startedOn = workDir
 
     #    if len(sys.argv) >= 3:
     #        workDir = sys.argv[2]
@@ -410,10 +471,11 @@ def main():
     
     os.chdir(workDir)
     dagResults = processDags()
+    filteredDagResults = filterDags(dagResults)
     vertexResults = processVertex()
     filteredVertexResults = filterVertex(vertexResults)
 
-    saveToXLS(dagResults, vertexResults, filteredVertexResults, startedOn)
+    saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
 
 if __name__ == "__main__":
     main()
