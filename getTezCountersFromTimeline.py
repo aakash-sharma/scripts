@@ -85,7 +85,10 @@ FilteredVertexProperties = ('vertexName',
                             'dagId',
                             'avgTaskCPUutil',
                             'spilledRecordsPerSec',
+                            'spilledRecords',
                             'hdfsBytesPerTask',
+                            'fileBytesPerTask',
+                            'totalBytesPerTask',
                             'FILE_BYTES_READ',
                             'FILE_BYTES_WRITTEN')
 
@@ -253,6 +256,7 @@ def processVertex_(vertexId):
         vertexProperties[VertexProperties.index('endTime')] = vertexJson['otherinfo']['endTime']
         vertexProperties[VertexProperties.index('initTime')] = vertexJson['otherinfo']['initTime']
         vertexProperties[VertexProperties.index('numSucceededTasks')] = vertexJson['otherinfo']['numSucceededTasks']
+
         if 'counters' not in vertexJson['otherinfo'].keys():
              return vertexProperties
         if 'counterGroups' not in vertexJson['otherinfo']['counters'].keys():
@@ -332,12 +336,18 @@ def filterVertex(vertexResults):
         filteredVertexProperties[FilteredVertexProperties.index('dagId')] = vertexResults[idx][VertexProperties.index('dagId')]
         filteredVertexProperties[FilteredVertexProperties.index('avgTaskCPUutil')] = vertexResults[idx][VertexProperties.index('avgTaskCPUutil')]
 
+        filteredVertexProperties[FilteredVertexProperties.index('spilledRecords')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')]
+
         if vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] == None:
             vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] = 0
+        if vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] == None:
+            vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] = 0
 
         filteredVertexProperties[FilteredVertexProperties.index('hdfsBytesPerTask')] = vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] // vertexResults[idx][VertexProperties.index('numSucceededTasks')]
-        filteredVertexProperties[FilteredVertexProperties.index('FILE_BYTES_READ')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]
-        filteredVertexProperties[FilteredVertexProperties.index('FILE_BYTES_WRITTEN')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_WRITTEN')]
+        filteredVertexProperties[FilteredVertexProperties.index('fileBytesPerTask')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] // vertexResults[idx][VertexProperties.index('numSucceededTasks')]
+        filteredVertexProperties[FilteredVertexProperties.index('totalBytesPerTask')] = (vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] + vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]) // vertexResults[idx][VertexProperties.index('numSucceededTasks')]
+#        filteredVertexProperties[FilteredVertexProperties.index('FILE_BYTES_READ')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]
+ #       filteredVertexProperties[FilteredVertexProperties.index('FILE_BYTES_WRITTEN')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_WRITTEN')]
         
         if vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] == None:
             vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
@@ -350,7 +360,6 @@ def filterVertex(vertexResults):
         filteredVertexResults.append(filteredVertexProperties.copy())
 
     return filteredVertexResults
-
 
 
 def is_number(s):
