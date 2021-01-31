@@ -84,7 +84,10 @@ VertexProperties = ('vertexId',
 FilteredVertexProperties = ('vertexName',
                             'dagId',
                             'avgTaskCPUutil',
-                            'spilledRecordsPerSec')
+                            'spilledRecordsPerSec',
+                            'hdfsBytesPerTask',
+                            'FILE_BYTES_READ',
+                            'FILE_BYTES_WRITTEN')
 
 TaskProperties = ('taskId',
                 'dagId',
@@ -207,48 +210,64 @@ def filterDags(dagResults):
 
     return filteredDagResults
   
-def processVertex():
+def processVertex(dagResults):
     vertexResults = []
-    exists = checkFileExists('vertex.json')
+
+    for i in range(len(dagResults)):
+        if dagResults[i][DagProperties.index('status')] != 'SUCCEEDED':
+            continue
+        print ("Processing DAG " + dagResults[i][DagProperties.index('dagId')])
+        for j in range(len(dagResults[i][DagProperties.index('vertexIds')])):
+            vertexProperties = processVertex_(dagResults[i][DagProperties.index('vertexIds')][j])
+            if vertexProperties:
+                vertexResults.append(vertexProperties.copy())
+
+    return vertexResults
+
+
+def processVertex_(vertexId):
+    exists = checkFileExists(vertexId + '.json')
     if exists:
-        print("vertex.json already exists, using the existing file")
+        print(f"{vertexId}.json already exists, using the existing file")
     else:
         try:
-            wget.download(URI + 'TEZ_VERTEX_ID/', 'vertex.json')
+            wget.download(URI + f'TEZ_VERTEX_ID/{vertexId}', f'{vertexId}.json')
         except:
-            print(f"Unable to fetch timeline server endpoint {URI}TEZ_VERTEX_ID/")
+            print(f"Unable to fetch timeline server endpoint {URI}TEZ_VERTEX_ID/{vertexId}")
             pass
             return
-    print("Processing vertex.json\n")
-    with open('vertex.json') as fd:
+    print(f"Processing {vertexId}.json\n")
+    with open(f'{vertexId}.json') as fd:
         vertexJson = json.load(fd)
-    for idx in range(len(vertexJson['entities'])):
+        
+        if 'SUCCEEDED' != vertexJson['otherinfo']['status'] or vertexJson['otherinfo']['numSucceededTasks'] == 0:
+           return None
+
         vertexProperties = [None] * len(VertexProperties)
-        vertexProperties[VertexProperties.index('vertexId')] = vertexJson['entities'][idx]['entity']
-        vertexProperties[VertexProperties.index('vertexName')] = vertexJson['entities'][idx]['otherinfo']['vertexName']
-        vertexProperties[VertexProperties.index('dagId')] = vertexJson['entities'][idx]['primaryfilters']['TEZ_DAG_ID']
-        vertexProperties[VertexProperties.index('applicationId')] = vertexJson['entities'][idx]['primaryfilters']['applicationId']
-        vertexProperties[VertexProperties.index('status')] = vertexJson['entities'][idx]['otherinfo']['status']
-        if 'SUCCEEDED' == vertexJson['entities'][idx]['otherinfo']['status']:
-            vertexProperties[VertexProperties.index('startTime')] = vertexJson['entities'][idx]['otherinfo']['startTime']
-            vertexProperties[VertexProperties.index('endTime')] = vertexJson['entities'][idx]['otherinfo']['endTime']
-            vertexProperties[VertexProperties.index('initTime')] = vertexJson['entities'][idx]['otherinfo']['initTime']
-            vertexProperties[VertexProperties.index('numSucceededTasks')] = vertexJson['entities'][idx]['otherinfo']['numSucceededTasks']
-            if 'counters' not in vertexJson['entities'][idx]['otherinfo'].keys():
-                continue
-            if 'counterGroups' not in vertexJson['entities'][idx]['otherinfo']['counters'].keys():
-                continue
-            for jdx in range(len(vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'])):
-                for zdx in range(len(vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'])):
-                    if vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'] in VertexProperties:
-                        vertexProperties[VertexProperties.index(vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'])] = vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
-                    elif "RECORDS_IN" in vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
-                        vertexProperties[VertexProperties.index('RECORDS_IN')] = vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
-                    elif "RECORDS_OUT" in vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
-                        vertexProperties[VertexProperties.index('RECORDS_OUT')] = vertexJson['entities'][idx]['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+        vertexProperties[VertexProperties.index('vertexId')] = vertexId
+        vertexProperties[VertexProperties.index('vertexName')] = vertexJson['otherinfo']['vertexName']
+        vertexProperties[VertexProperties.index('dagId')] = vertexJson['primaryfilters']['TEZ_DAG_ID'][0]
+        vertexProperties[VertexProperties.index('applicationId')] = vertexJson['primaryfilters']['applicationId'][0]
+        vertexProperties[VertexProperties.index('status')] = vertexJson['otherinfo']['status']
+        vertexProperties[VertexProperties.index('startTime')] = vertexJson['otherinfo']['startTime']
+        vertexProperties[VertexProperties.index('endTime')] = vertexJson['otherinfo']['endTime']
+        vertexProperties[VertexProperties.index('initTime')] = vertexJson['otherinfo']['initTime']
+        vertexProperties[VertexProperties.index('numSucceededTasks')] = vertexJson['otherinfo']['numSucceededTasks']
+        if 'counters' not in vertexJson['otherinfo'].keys():
+             return vertexProperties
+        if 'counterGroups' not in vertexJson['otherinfo']['counters'].keys():
+             return vertexProperties
+        for jdx in range(len(vertexJson['otherinfo']['counters']['counterGroups'])):
+            for zdx in range(len(vertexJson['otherinfo']['counters']['counterGroups'][jdx]['counters'])):
+                    if vertexJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'] in VertexProperties:
+                        vertexProperties[VertexProperties.index(vertexJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'])] = vertexJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+                    elif "RECORDS_IN" in vertexJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
+                        vertexProperties[VertexProperties.index('RECORDS_IN')] = vertexJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+                    elif "RECORDS_OUT" in vertexJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName']:
+                        vertexProperties[VertexProperties.index('RECORDS_OUT')] = vertexJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
 
             taskResults = []
-            for task in vertexJson['entities'][idx]['relatedentities']['TEZ_TASK_ID']:
+            for task in vertexJson['relatedentities']['TEZ_TASK_ID']:
                 exists = checkFileExists(task + '.json')
                 if exists:
                    print(f"{task}.json already exists, using the existing file")
@@ -299,8 +318,9 @@ def processVertex():
 
             vertexProperties[VertexProperties.index('avgTaskCPUutil')] = sum(taskResults[i][TaskProperties.index('CPU_UTIL')] for i in range(len(taskResults))) / vertexProperties[VertexProperties.index('numSucceededTasks')]
 
-        vertexResults.append(vertexProperties.copy())
-    return vertexResults
+#        vertexResults.append(vertexProperties.copy())
+ #   return vertexResults
+        return vertexProperties
 
 def filterVertex(vertexResults):
     filteredVertexResults = []
@@ -311,6 +331,13 @@ def filterVertex(vertexResults):
         filteredVertexProperties[FilteredVertexProperties.index('vertexName')] = vertexResults[idx][VertexProperties.index('vertexName')]
         filteredVertexProperties[FilteredVertexProperties.index('dagId')] = vertexResults[idx][VertexProperties.index('dagId')]
         filteredVertexProperties[FilteredVertexProperties.index('avgTaskCPUutil')] = vertexResults[idx][VertexProperties.index('avgTaskCPUutil')]
+
+        if vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] == None:
+            vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] = 0
+
+        filteredVertexProperties[FilteredVertexProperties.index('hdfsBytesPerTask')] = vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] // vertexResults[idx][VertexProperties.index('numSucceededTasks')]
+        filteredVertexProperties[FilteredVertexProperties.index('FILE_BYTES_READ')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]
+        filteredVertexProperties[FilteredVertexProperties.index('FILE_BYTES_WRITTEN')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_WRITTEN')]
         
         if vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] == None:
             vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
@@ -472,7 +499,7 @@ def main():
     os.chdir(workDir)
     dagResults = processDags()
     filteredDagResults = filterDags(dagResults)
-    vertexResults = processVertex()
+    vertexResults = processVertex(dagResults)
     filteredVertexResults = filterVertex(vertexResults)
 
     saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
