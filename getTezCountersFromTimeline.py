@@ -10,6 +10,7 @@ from os import listdir
 from os.path import isfile, join
 import datetime
 from shutil import copy
+from scipy.stats import pearsonr
 
 
 URI='http://0.0.0.0:8188/ws/v1/timeline/'
@@ -30,7 +31,9 @@ DagProperties = ('dagId',
 
 FilteredDagProperties = ('dagId',
                          'CPUaverage',
-                         'spilledRecordsPerSec')
+                         'spilledRecordsPerSec',
+                         'corr_cpu_total_data',
+                         'corr_spillage_total_data')
 
 VertexProperties = ('vertexId',
                   'vertexName',
@@ -86,9 +89,9 @@ FilteredVertexProperties = ('vertexName',
                             'avgTaskCPUutil',
                             'spilledRecordsPerSec',
                             'spilledRecords',
-                            'hdfsBytesPerTask',
-                            'fileBytesPerTask',
-                            'totalBytesPerTask',
+                            'hdfsBytes',
+                            'fileBytes',
+                            'totalBytes',
                             'FILE_BYTES_READ',
                             'FILE_BYTES_WRITTEN')
 
@@ -185,10 +188,14 @@ def processDags():
         
     return dagResults
 
-def filterDags(dagResults):
+def filterDags(dagResults, vertexResults):
     filteredDagResults = []
+    verticesFromResults = {}
+    for i in range(len(vertexResults)):
+        verticesFromResults[vertexResults[i][VertexProperties.index('vertexId')]] = i 
 
     for idx in range(len(dagResults)):
+        print("Filtering DAG " +  dagResults[idx][DagProperties.index('dagId')])
         filteredDagProperties = [None] * len(FilteredDagProperties)
 
         if dagResults[idx][DagProperties.index('timeTaken')] == None:
@@ -208,6 +215,54 @@ def filterDags(dagResults):
             dagResults[idx][DagProperties.index('spilledRecords')] = 0
         
         filteredDagProperties[FilteredDagProperties.index('spilledRecordsPerSec')] = dagResults[idx][DagProperties.index('spilledRecords')] / dagResults[idx][DagProperties.index('timeTaken')] * 1000
+
+        vertices = dagResults[idx][DagProperties.index('vertexIds')]
+
+        cpu_vertices = []
+        spillage_vertices = []
+        total_data_vertices = [] 
+        hdfs_data_vertices = [] 
+        file_data_vertices = [] 
+        
+
+        for v in vertices:
+#            print(v)
+            if v in verticesFromResults:
+#                print("in results")
+                idx  = verticesFromResults[v]
+                val_hdfs = vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] 
+                val_file = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]
+                val_cpu = vertexResults[idx][VertexProperties.index('avgTaskCPUutil')]
+                val_spillage = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] 
+
+
+                if val_hdfs == None:
+                    val_hdfs = 0
+                if val_file == None:
+                    val_file = 0
+                if val_cpu == None:
+                    val_cpu = 0
+                if val_spillage == None:
+                    val_spillage = 0
+
+                val_spillage = val_spillage / (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000
+
+                cpu_vertices.append(val_cpu)
+                spillage_vertices.append(val_spillage)
+                total_data_vertices.append(val_hdfs + val_file)
+                hdfs_data_vertices.append(val_hdfs)
+                file_data_vertices.append(val_file)
+
+ #       print(spillage_vertices)
+ #       print(cpu_vertices)
+ #       print(total_data_vertices)
+ #       print(len(cpu_vertices))
+ #       print(filteredDagProperties[FilteredDagProperties.index('corr_cpu_total_data')], filteredDagProperties[FilteredDagProperties.index('corr_spillage_total_data')])
+        
+        if len(cpu_vertices) > 1:
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_total_data')], _ = pearsonr(cpu_vertices, total_data_vertices)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_total_data')], _ = pearsonr(spillage_vertices, total_data_vertices)
+
 
         filteredDagResults.append(filteredDagProperties.copy())
 
@@ -343,19 +398,15 @@ def filterVertex(vertexResults):
         if vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] == None:
             vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] = 0
 
-        filteredVertexProperties[FilteredVertexProperties.index('hdfsBytesPerTask')] = vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] // vertexResults[idx][VertexProperties.index('numSucceededTasks')]
-        filteredVertexProperties[FilteredVertexProperties.index('fileBytesPerTask')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] // vertexResults[idx][VertexProperties.index('numSucceededTasks')]
-        filteredVertexProperties[FilteredVertexProperties.index('totalBytesPerTask')] = (vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] + vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]) // vertexResults[idx][VertexProperties.index('numSucceededTasks')]
-#        filteredVertexProperties[FilteredVertexProperties.index('FILE_BYTES_READ')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]
- #       filteredVertexProperties[FilteredVertexProperties.index('FILE_BYTES_WRITTEN')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_WRITTEN')]
+        filteredVertexProperties[FilteredVertexProperties.index('hdfsBytes')] = vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')]
+        filteredVertexProperties[FilteredVertexProperties.index('fileBytes')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]
+        filteredVertexProperties[FilteredVertexProperties.index('totalBytes')] = (vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] + vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')])
         
         if vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] == None:
             vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
-        #if vertexResults[idx][VertexProperties.index('endTime')] == None:
-        #print( vertexResults[idx][VertexProperties.index('startTime')])
-        if vertexResults[idx][VertexProperties.index('endTime')] == None or vertexResults[idx][VertexProperties.index('startTime')] == None:
-            continue
-        filteredVertexProperties[FilteredVertexProperties.index('spilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] / (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000 
+
+        if vertexResults[idx][VertexProperties.index('endTime')] == None and vertexResults[idx][VertexProperties.index('startTime')] != None:
+            filteredVertexProperties[FilteredVertexProperties.index('spilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] / (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000 
 
         filteredVertexResults.append(filteredVertexProperties.copy())
 
@@ -507,8 +558,8 @@ def main():
     
     os.chdir(workDir)
     dagResults = processDags()
-    filteredDagResults = filterDags(dagResults)
     vertexResults = processVertex(dagResults)
+    filteredDagResults = filterDags(dagResults, vertexResults)
     filteredVertexResults = filterVertex(vertexResults)
 
     saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
