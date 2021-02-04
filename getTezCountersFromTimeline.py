@@ -32,7 +32,11 @@ DagProperties = ('dagId',
 FilteredDagProperties = ('dagId',
                          'CPUaverage',
                          'spilledRecordsPerSec',
+                         'corr_cpu_hdfs_data',
+                         'corr_cpu_local_data',
                          'corr_cpu_total_data',
+                         'corr_spillage_hdfs_data',
+                         'corr_spillage_local_data',
                          'corr_spillage_total_data')
 
 VertexProperties = ('vertexId',
@@ -260,7 +264,11 @@ def filterDags(dagResults, vertexResults):
  #       print(filteredDagProperties[FilteredDagProperties.index('corr_cpu_total_data')], filteredDagProperties[FilteredDagProperties.index('corr_spillage_total_data')])
         
         if len(cpu_vertices) > 1:
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_hdfs_data')], _ = pearsonr(cpu_vertices, hdfs_data_vertices)
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_local_data')], _ = pearsonr(cpu_vertices, file_data_vertices)
             filteredDagProperties[FilteredDagProperties.index('corr_cpu_total_data')], _ = pearsonr(cpu_vertices, total_data_vertices)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_hdfs_data')], _ = pearsonr(spillage_vertices, hdfs_data_vertices)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_local_data')], _ = pearsonr(spillage_vertices, file_data_vertices)
             filteredDagProperties[FilteredDagProperties.index('corr_spillage_total_data')], _ = pearsonr(spillage_vertices, total_data_vertices)
 
 
