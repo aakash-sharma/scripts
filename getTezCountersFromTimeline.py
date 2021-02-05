@@ -34,10 +34,14 @@ FilteredDagProperties = ('dagId',
                          'spilledRecordsPerSec',
                          'corr_cpu_hdfs_data',
                          'corr_cpu_local_data',
-                         'corr_cpu_total_data',
                          'corr_spillage_hdfs_data',
                          'corr_spillage_local_data',
-                         'corr_spillage_total_data')
+                         'corr_cpu_hdfs_data_map',
+                         'corr_cpu_local_data_map',
+                         'corr_spillage_hdfs_data_map',
+                         'corr_spillage_local_data_map',
+                         'corr_cpu_local_data_reduce',
+                         'corr_spillage_local_data_reduce')
 
 VertexProperties = ('vertexId',
                   'vertexName',
@@ -222,12 +226,21 @@ def filterDags(dagResults, vertexResults):
 
         vertices = dagResults[idx][DagProperties.index('vertexIds')]
 
-        cpu_vertices = []
-        spillage_vertices = []
-        total_data_vertices = [] 
-        hdfs_data_vertices = [] 
-        file_data_vertices = [] 
+        cpu_vertex = []
+        spillage_vertex = []
+        total_data_vertex = [] 
+        hdfs_data_vertex = [] 
+        file_data_vertex = [] 
         
+        cpu_vertex_map = []
+        spillage_vertex_map = []
+        hdfs_data_vertex_map = [] 
+        file_data_vertex_map = [] 
+
+        cpu_vertex_reduce = []
+        spillage_vertex_reduce = []
+        hdfs_data_vertex_reduce = [] 
+        file_data_vertex_reduce = [] 
 
         for v in vertices:
 #            print(v)
@@ -251,11 +264,24 @@ def filterDags(dagResults, vertexResults):
 
                 val_spillage = val_spillage / (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000
 
-                cpu_vertices.append(val_cpu)
-                spillage_vertices.append(val_spillage)
-                total_data_vertices.append(val_hdfs + val_file)
-                hdfs_data_vertices.append(val_hdfs)
-                file_data_vertices.append(val_file)
+                cpu_vertex.append(val_cpu)
+                spillage_vertex.append(val_spillage)
+                total_data_vertex.append(val_hdfs + val_file)
+                hdfs_data_vertex.append(val_hdfs)
+                file_data_vertex.append(val_file)
+
+                if "Map" in vertexResults[idx][VertexProperties.index('vertexName')]:
+                    cpu_vertex_map.append(val_cpu)
+                    spillage_vertex_map.append(val_spillage)
+                    hdfs_data_vertex_map.append(val_hdfs)
+                    file_data_vertex_map.append(val_file)
+                    
+                if "Reduce" in vertexResults[idx][VertexProperties.index('vertexName')]:
+                    cpu_vertex_reduce.append(val_cpu)
+                    spillage_vertex_reduce.append(val_spillage)
+                    hdfs_data_vertex_reduce.append(val_hdfs)
+                    file_data_vertex_reduce.append(val_file)
+
 
  #       print(spillage_vertices)
  #       print(cpu_vertices)
@@ -263,14 +289,23 @@ def filterDags(dagResults, vertexResults):
  #       print(len(cpu_vertices))
  #       print(filteredDagProperties[FilteredDagProperties.index('corr_cpu_total_data')], filteredDagProperties[FilteredDagProperties.index('corr_spillage_total_data')])
         
-        if len(cpu_vertices) > 1:
-            filteredDagProperties[FilteredDagProperties.index('corr_cpu_hdfs_data')], _ = pearsonr(cpu_vertices, hdfs_data_vertices)
-            filteredDagProperties[FilteredDagProperties.index('corr_cpu_local_data')], _ = pearsonr(cpu_vertices, file_data_vertices)
-            filteredDagProperties[FilteredDagProperties.index('corr_cpu_total_data')], _ = pearsonr(cpu_vertices, total_data_vertices)
-            filteredDagProperties[FilteredDagProperties.index('corr_spillage_hdfs_data')], _ = pearsonr(spillage_vertices, hdfs_data_vertices)
-            filteredDagProperties[FilteredDagProperties.index('corr_spillage_local_data')], _ = pearsonr(spillage_vertices, file_data_vertices)
-            filteredDagProperties[FilteredDagProperties.index('corr_spillage_total_data')], _ = pearsonr(spillage_vertices, total_data_vertices)
+        if len(cpu_vertex) > 1:
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_hdfs_data')], _ = pearsonr(cpu_vertex, hdfs_data_vertex)
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_local_data')], _ = pearsonr(cpu_vertex, file_data_vertex)
+    #        filteredDagProperties[FilteredDagProperties.index('corr_cpu_total_data')], _ = pearsonr(cpu_vertices, total_data_vertices)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_hdfs_data')], _ = pearsonr(spillage_vertex, hdfs_data_vertex)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_local_data')], _ = pearsonr(spillage_vertex, file_data_vertex)
+   #         filteredDagProperties[FilteredDagProperties.index('corr_spillage_total_data')], _ = pearsonr(spillage_vertices, total_data_vertices)
 
+        if len(cpu_vertex_map) > 1:
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_hdfs_data_map')], _ = pearsonr(cpu_vertex_map, hdfs_data_vertex_map)
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_local_data_map')], _ = pearsonr(cpu_vertex_map, file_data_vertex_map)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_hdfs_data_map')], _ = pearsonr(spillage_vertex_map, hdfs_data_vertex_map)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_local_data_map')], _ = pearsonr(spillage_vertex_map, file_data_vertex_map)
+
+        if len(cpu_vertex_reduce) > 1:
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_local_data_reduce')], _ = pearsonr(cpu_vertex_reduce, file_data_vertex_reduce)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_local_data_reduce')], _ = pearsonr(spillage_vertex_reduce, file_data_vertex_reduce)
 
         filteredDagResults.append(filteredDagProperties.copy())
 
