@@ -11,6 +11,8 @@ from os.path import isfile, join
 import datetime
 from shutil import copy
 from scipy.stats import pearsonr
+from scipy.stats.mstats import gmean 
+import matplotlib.pyplot as plt
 
 
 URI='http://0.0.0.0:8188/ws/v1/timeline/'
@@ -30,7 +32,7 @@ DagProperties = ('dagId',
                  'GCms')
 
 FilteredDagProperties = ('dagId',
-                         'CPUaverage',
+                         'approxAvgCPUUtil',
                          'spilledRecordsPerSec',
                          'corr_cpu_hdfs_data',
                          'corr_cpu_local_data',
@@ -41,11 +43,12 @@ FilteredDagProperties = ('dagId',
                          'corr_spillage_hdfs_data_map',
                          'corr_spillage_local_data_map',
                          'corr_cpu_local_data_reduce',
-                         'corr_spillage_local_data_reduce')
+                         'corr_cpu_shuffle_data_reduce',
+                         'corr_spillage_local_data_reduce',
+                         'corr_spillage_shuffle_data_reduce')
 
 VertexProperties = ('vertexId',
                   'vertexName',
-                  'status',
                   'dagId',
                   'applicationId',
                   'numSucceededTasks',
@@ -99,9 +102,8 @@ FilteredVertexProperties = ('vertexName',
                             'spilledRecords',
                             'hdfsBytes',
                             'fileBytes',
-                            'totalBytes',
-                            'FILE_BYTES_READ',
-                            'FILE_BYTES_WRITTEN')
+                            'shuffleBytes',
+                            'totalBytes')
 
 TaskProperties = ('taskId',
                 'dagId',
@@ -217,7 +219,7 @@ def filterDags(dagResults, vertexResults):
         if dagResults[idx][DagProperties.index('GCms')] == None:
             dagResults[idx][DagProperties.index('GCms')] = 0
 
-        filteredDagProperties[FilteredDagProperties.index('CPUaverage')] = (dagResults[idx][DagProperties.index('CPUms')] + dagResults[idx][DagProperties.index('GCms')]) / dagResults[idx][DagProperties.index('timeTaken')] * 100
+        filteredDagProperties[FilteredDagProperties.index('approxAvgCPUUtil')] = (dagResults[idx][DagProperties.index('CPUms')] + dagResults[idx][DagProperties.index('GCms')]) / dagResults[idx][DagProperties.index('timeTaken')] * 100 
         
         if dagResults[idx][DagProperties.index('spilledRecords')] == None:
             dagResults[idx][DagProperties.index('spilledRecords')] = 0
@@ -239,7 +241,7 @@ def filterDags(dagResults, vertexResults):
 
         cpu_vertex_reduce = []
         spillage_vertex_reduce = []
-        hdfs_data_vertex_reduce = [] 
+        shuffle_data_vertex_reduce = [] 
         file_data_vertex_reduce = [] 
 
         for v in vertices:
@@ -249,6 +251,7 @@ def filterDags(dagResults, vertexResults):
                 idx  = verticesFromResults[v]
                 val_hdfs = vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] 
                 val_file = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]
+                val_shuffle = vertexResults[idx][VertexProperties.index('SHUFFLE_BYTES')]
                 val_cpu = vertexResults[idx][VertexProperties.index('avgTaskCPUutil')]
                 val_spillage = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] 
 
@@ -257,6 +260,8 @@ def filterDags(dagResults, vertexResults):
                     val_hdfs = 0
                 if val_file == None:
                     val_file = 0
+                if val_shuffle == None:
+                    val_shuffle = 0
                 if val_cpu == None:
                     val_cpu = 0
                 if val_spillage == None:
@@ -279,7 +284,7 @@ def filterDags(dagResults, vertexResults):
                 if "Reduce" in vertexResults[idx][VertexProperties.index('vertexName')]:
                     cpu_vertex_reduce.append(val_cpu)
                     spillage_vertex_reduce.append(val_spillage)
-                    hdfs_data_vertex_reduce.append(val_hdfs)
+                    shuffle_data_vertex_reduce.append(val_shuffle)
                     file_data_vertex_reduce.append(val_file)
 
 
@@ -305,7 +310,9 @@ def filterDags(dagResults, vertexResults):
 
         if len(cpu_vertex_reduce) > 1:
             filteredDagProperties[FilteredDagProperties.index('corr_cpu_local_data_reduce')], _ = pearsonr(cpu_vertex_reduce, file_data_vertex_reduce)
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_shuffle_data_reduce')], _ = pearsonr(cpu_vertex_reduce, file_data_vertex_reduce)
             filteredDagProperties[FilteredDagProperties.index('corr_spillage_local_data_reduce')], _ = pearsonr(spillage_vertex_reduce, file_data_vertex_reduce)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_shuffle_data_reduce')], _ = pearsonr(spillage_vertex_reduce, file_data_vertex_reduce)
 
         filteredDagResults.append(filteredDagProperties.copy())
 
@@ -349,7 +356,7 @@ def processVertex_(vertexId):
         vertexProperties[VertexProperties.index('vertexName')] = vertexJson['otherinfo']['vertexName']
         vertexProperties[VertexProperties.index('dagId')] = vertexJson['primaryfilters']['TEZ_DAG_ID'][0]
         vertexProperties[VertexProperties.index('applicationId')] = vertexJson['primaryfilters']['applicationId'][0]
-        vertexProperties[VertexProperties.index('status')] = vertexJson['otherinfo']['status']
+        #vertexProperties[VertexProperties.index('status')] = vertexJson['otherinfo']['status']
         vertexProperties[VertexProperties.index('startTime')] = vertexJson['otherinfo']['startTime']
         vertexProperties[VertexProperties.index('endTime')] = vertexJson['otherinfo']['endTime']
         vertexProperties[VertexProperties.index('initTime')] = vertexJson['otherinfo']['initTime']
@@ -413,12 +420,13 @@ def processVertex_(vertexId):
                             taskProperties[TaskProperties.index('TASK_STARTED')] = taskJson['events'][jdx]['timestamp']
                             
 
-                    taskProperties[TaskProperties.index('CPU_UTIL')] = taskProperties[TaskProperties.index('CPU_MILLISECONDS')] / (taskProperties[TaskProperties.index('TASK_FINISHED')] - taskProperties[TaskProperties.index('TASK_STARTED')]) * 100
+                    taskProperties[TaskProperties.index('CPU_UTIL')] = taskProperties[TaskProperties.index('CPU_MILLISECONDS')] / (taskProperties[TaskProperties.index('TASK_FINISHED')] - taskProperties[TaskProperties.index('TASK_STARTED')]) * 100 / 0.8
 
         
                     taskResults.append(taskProperties.copy())
 
-            vertexProperties[VertexProperties.index('avgTaskCPUutil')] = sum(taskResults[i][TaskProperties.index('CPU_UTIL')] for i in range(len(taskResults))) / vertexProperties[VertexProperties.index('numSucceededTasks')]
+            vertexProperties[VertexProperties.index('avgTaskCPUutil')] = gmean([taskResults[i][TaskProperties.index('CPU_UTIL')] for i in range(len(taskResults))])
+            #vertexProperties[VertexProperties.index('avgTaskCPUutil')] = sum(taskResults[i][TaskProperties.index('CPU_UTIL')] for i in range(len(taskResults))) / vertexProperties[VertexProperties.index('numSucceededTasks')]
 
 #        vertexResults.append(vertexProperties.copy())
  #   return vertexResults
@@ -440,10 +448,13 @@ def filterVertex(vertexResults):
             vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] = 0
         if vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] == None:
             vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] = 0
+        if vertexResults[idx][VertexProperties.index('SHUFFLE_BYTES')] == None:
+            vertexResults[idx][VertexProperties.index('SHUFFLE_BYTES')] = 0
 
         filteredVertexProperties[FilteredVertexProperties.index('hdfsBytes')] = vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')]
         filteredVertexProperties[FilteredVertexProperties.index('fileBytes')] = vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')]
-        filteredVertexProperties[FilteredVertexProperties.index('totalBytes')] = (vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] + vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')])
+        filteredVertexProperties[FilteredVertexProperties.index('shuffleBytes')] = vertexResults[idx][VertexProperties.index('SHUFFLE_BYTES')]
+        filteredVertexProperties[FilteredVertexProperties.index('totalBytes')] = (vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] + vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] + vertexResults[idx][VertexProperties.index('SHUFFLE_BYTES')])
         
         if vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] == None:
             vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
