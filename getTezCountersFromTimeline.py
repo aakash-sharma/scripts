@@ -32,7 +32,7 @@ DagProperties = ('dagId',
                  'GCms')
 
 FilteredDagProperties = ('dagId',
-                         'approxAvgCPUUtil',
+                         'CPUms',
                          'spilledRecordsPerSec',
                          'corr_cpu_hdfs_data',
                          'corr_cpu_local_data',
@@ -219,7 +219,7 @@ def filterDags(dagResults, vertexResults):
         if dagResults[idx][DagProperties.index('GCms')] == None:
             dagResults[idx][DagProperties.index('GCms')] = 0
 
-        filteredDagProperties[FilteredDagProperties.index('approxAvgCPUUtil')] = (dagResults[idx][DagProperties.index('CPUms')] + dagResults[idx][DagProperties.index('GCms')]) / dagResults[idx][DagProperties.index('timeTaken')] * 100 
+        filteredDagProperties[FilteredDagProperties.index('CPUms')] = (dagResults[idx][DagProperties.index('CPUms')] + dagResults[idx][DagProperties.index('GCms')]) #/ dagResults[idx][DagProperties.index('timeTaken')] * 100 /8
         
         if dagResults[idx][DagProperties.index('spilledRecords')] == None:
             dagResults[idx][DagProperties.index('spilledRecords')] = 0
@@ -287,12 +287,6 @@ def filterDags(dagResults, vertexResults):
                     shuffle_data_vertex_reduce.append(val_shuffle)
                     file_data_vertex_reduce.append(val_file)
 
-
- #       print(spillage_vertices)
- #       print(cpu_vertices)
- #       print(total_data_vertices)
- #       print(len(cpu_vertices))
- #       print(filteredDagProperties[FilteredDagProperties.index('corr_cpu_total_data')], filteredDagProperties[FilteredDagProperties.index('corr_spillage_total_data')])
         
         if len(cpu_vertex) > 1:
             filteredDagProperties[FilteredDagProperties.index('corr_cpu_hdfs_data')], _ = pearsonr(cpu_vertex, hdfs_data_vertex)
@@ -310,9 +304,9 @@ def filterDags(dagResults, vertexResults):
 
         if len(cpu_vertex_reduce) > 1:
             filteredDagProperties[FilteredDagProperties.index('corr_cpu_local_data_reduce')], _ = pearsonr(cpu_vertex_reduce, file_data_vertex_reduce)
-            filteredDagProperties[FilteredDagProperties.index('corr_cpu_shuffle_data_reduce')], _ = pearsonr(cpu_vertex_reduce, file_data_vertex_reduce)
+            filteredDagProperties[FilteredDagProperties.index('corr_cpu_shuffle_data_reduce')], _ = pearsonr(cpu_vertex_reduce, shuffle_data_vertex_reduce)
             filteredDagProperties[FilteredDagProperties.index('corr_spillage_local_data_reduce')], _ = pearsonr(spillage_vertex_reduce, file_data_vertex_reduce)
-            filteredDagProperties[FilteredDagProperties.index('corr_spillage_shuffle_data_reduce')], _ = pearsonr(spillage_vertex_reduce, file_data_vertex_reduce)
+            filteredDagProperties[FilteredDagProperties.index('corr_spillage_shuffle_data_reduce')], _ = pearsonr(spillage_vertex_reduce, shuffle_data_vertex_reduce)
 
         filteredDagResults.append(filteredDagProperties.copy())
 
@@ -420,7 +414,7 @@ def processVertex_(vertexId):
                             taskProperties[TaskProperties.index('TASK_STARTED')] = taskJson['events'][jdx]['timestamp']
                             
 
-                    taskProperties[TaskProperties.index('CPU_UTIL')] = taskProperties[TaskProperties.index('CPU_MILLISECONDS')] / (taskProperties[TaskProperties.index('TASK_FINISHED')] - taskProperties[TaskProperties.index('TASK_STARTED')]) * 100 / 0.8
+                    taskProperties[TaskProperties.index('CPU_UTIL')] = taskProperties[TaskProperties.index('CPU_MILLISECONDS')] / (taskProperties[TaskProperties.index('TASK_FINISHED')] - taskProperties[TaskProperties.index('TASK_STARTED')]) * 100 #/ 0.8
 
         
                     taskResults.append(taskProperties.copy())
@@ -589,6 +583,34 @@ def saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResul
 
     workbook.save('report-' + startedOn + '.xls')
 
+def plotGraph(filteredDagResults, filteredVertexResults):
+    fig, axs = plt.subplots(3,2)
+
+    x_axis = [filteredDagResults[i][FilteredDagProperties.index('dagId')] for i in range(8)]
+    
+    y1_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_hdfs_data_map')] for i in range(8)]
+    y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_local_data_map')] for i in range(8)]
+    axs[0,0].bar(x_axis, y1_axis, color = 'b', width = 0.25) 
+    axs[0,0].bar(x_axis, y2_axis, color = 'g', width = 0.25) 
+
+    y1_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_shuffle_data_reduce')] for i in range(8)]
+    y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_local_data_reduce')] for i in range(8)]
+    axs[0,1].bar(x_axis, y1_axis, color = 'b', width = 0.25) 
+    axs[0,1].bar(x_axis, y2_axis, color = 'g', width = 0.25) 
+
+    y1_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_hdfs_data_map')] for i in range(8)]
+    y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_local_data_map')] for i in range(8)]
+    axs[1,0].bar(x_axis, y1_axis, color = 'b', width = 0.25) 
+    axs[1,0].bar(x_axis, y2_axis, color = 'g', width = 0.25) 
+
+    y1_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_shuffle_data_reduce')] for i in range(8)]
+    y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_local_data_reduce')] for i in range(8)]
+    axs[1,1].bar(x_axis, y1_axis, color = 'b', width = 0.25) 
+    axs[1,1].bar(x_axis, y2_axis, color = 'g', width = 0.25) 
+
+    plt.show()
+
+
 def main():
     startedOn = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
     print(startedOn)
@@ -617,6 +639,7 @@ def main():
     filteredVertexResults = filterVertex(vertexResults)
 
     saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
+    #plotGraph(filteredDagResults, filteredVertexResults)
 
 if __name__ == "__main__":
     main()
