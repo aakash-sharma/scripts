@@ -56,6 +56,7 @@ VertexProperties = ('vertexId',
                   'endTime',
                   'initTime',
                   'avgTaskCPUutil',
+                  'avgTaskSpilledRecordsPerSec',
                   'FILE_BYTES_READ',
                   'FILE_BYTES_WRITTEN',
                   'FILE_READ_OPS',
@@ -98,8 +99,9 @@ VertexProperties = ('vertexId',
 FilteredVertexProperties = ('vertexName',
                             'dagId',
                             'avgTaskCPUutil',
-                            'spilledRecordsPerSec',
                             'spilledRecords',
+                            'avgTaskSpilledRecordsPerSec',
+                            'vertexSpilledRecordsPerSec',
                             'hdfsBytes',
                             'fileBytes',
                             'shuffleBytes',
@@ -112,7 +114,9 @@ TaskProperties = ('taskId',
                 'CPU_MILLISECONDS',
                 'TASK_STARTED',
                 'TASK_FINISHED',
-                'CPU_UTIL')
+                'CPU_UTIL',
+                'SPILLED_RECORDS',
+                'spillagePerSec')
 
 
 def checkFileExists(fileName):
@@ -390,7 +394,7 @@ def processVertex_(vertexId):
                     if taskJson['primaryfilters']['status'][0] != 'SUCCEEDED':
                         continue
 
-                    taskProperties = [None] * len(TaskProperties)
+                    taskProperties = [0] * len(TaskProperties)
                     taskProperties[TaskProperties.index('CPU_MILLISECONDS')] = 0
 
 
@@ -406,6 +410,8 @@ def processVertex_(vertexId):
                                     taskProperties[TaskProperties.index('CPU_MILLISECONDS')] += taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
                                 if taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'] == 'CPU_MILLISECONDS':
                                     taskProperties[TaskProperties.index('CPU_MILLISECONDS')] += taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
+                                if taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterName'] == 'SPILLED_RECORDS':
+                                    taskProperties[TaskProperties.index('SPILLED_RECORDS')] = taskJson['otherinfo']['counters']['counterGroups'][jdx]['counters'][zdx]['counterValue']
                     
                     for jdx in range(len(taskJson['events'])):
                         if taskJson['events'][jdx]['eventtype'] == 'TASK_FINISHED':
@@ -415,26 +421,27 @@ def processVertex_(vertexId):
                             
 
                     taskProperties[TaskProperties.index('CPU_UTIL')] = taskProperties[TaskProperties.index('CPU_MILLISECONDS')] / (taskProperties[TaskProperties.index('TASK_FINISHED')] - taskProperties[TaskProperties.index('TASK_STARTED')]) * 100 #/ 0.8
+                    taskProperties[TaskProperties.index('spillagePerSec')] = taskProperties[TaskProperties.index('SPILLED_RECORDS')] / (taskProperties[TaskProperties.index('TASK_FINISHED')] - taskProperties[TaskProperties.index('TASK_STARTED')]) * 1000 #/ 0.8
 
         
                     taskResults.append(taskProperties.copy())
 
             vertexProperties[VertexProperties.index('avgTaskCPUutil')] = gmean([taskResults[i][TaskProperties.index('CPU_UTIL')] for i in range(len(taskResults))])
+            vertexProperties[VertexProperties.index('avgTaskSpilledRecordsPerSec')] = gmean([taskResults[i][TaskProperties.index('spillagePerSec')] for i in range(len(taskResults))])
             #vertexProperties[VertexProperties.index('avgTaskCPUutil')] = sum(taskResults[i][TaskProperties.index('CPU_UTIL')] for i in range(len(taskResults))) / vertexProperties[VertexProperties.index('numSucceededTasks')]
 
-#        vertexResults.append(vertexProperties.copy())
- #   return vertexResults
         return vertexProperties
 
 def filterVertex(vertexResults):
     filteredVertexResults = []
 
     for idx in range(len(vertexResults)):
-        filteredVertexProperties = [None] * len(FilteredVertexProperties)
+        filteredVertexProperties = [0] * len(FilteredVertexProperties)
         
         filteredVertexProperties[FilteredVertexProperties.index('vertexName')] = vertexResults[idx][VertexProperties.index('vertexName')]
         filteredVertexProperties[FilteredVertexProperties.index('dagId')] = vertexResults[idx][VertexProperties.index('dagId')]
         filteredVertexProperties[FilteredVertexProperties.index('avgTaskCPUutil')] = vertexResults[idx][VertexProperties.index('avgTaskCPUutil')]
+        filteredVertexProperties[FilteredVertexProperties.index('avgTaskSpilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('avgTaskSpilledRecordsPerSec')]
 
         filteredVertexProperties[FilteredVertexProperties.index('spilledRecords')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')]
 
@@ -453,8 +460,8 @@ def filterVertex(vertexResults):
         if vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] == None:
             vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
 
-        if vertexResults[idx][VertexProperties.index('endTime')] == None and vertexResults[idx][VertexProperties.index('startTime')] != None:
-            filteredVertexProperties[FilteredVertexProperties.index('spilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] / (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000 
+        if vertexResults[idx][VertexProperties.index('endTime')] != None and vertexResults[idx][VertexProperties.index('startTime')] != None:
+            filteredVertexProperties[FilteredVertexProperties.index('vertexSpilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] // (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000 
 
         filteredVertexResults.append(filteredVertexProperties.copy())
 
@@ -639,7 +646,7 @@ def main():
     filteredVertexResults = filterVertex(vertexResults)
 
     saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
-    #plotGraph(filteredDagResults, filteredVertexResults)
+#    plotGraph(filteredDagResults, filteredVertexResults)
 
 if __name__ == "__main__":
     main()
