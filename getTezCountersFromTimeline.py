@@ -591,15 +591,79 @@ def saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResul
     workbook.save('report-' + startedOn + '.xls')
 
 def plotGraph(filteredDagResults, filteredVertexResults):
-    fig, axs = plt.subplots(3,2)
+    fig, axs = plt.subplots(4, 2, figsize=(15,15))
+    dag_len = len(filteredDagResults)
 
-    x_axis = [filteredDagResults[i][FilteredDagProperties.index('dagId')] for i in range(8)]
+    map_vertices = [vertex for vertex in filteredVertexResults if "Map" in vertex[FilteredVertexProperties.index('vertexName')]]
+    reduce_vertices = [vertex for vertex in filteredVertexResults if "Reduce" in vertex[FilteredVertexProperties.index('vertexName')]]
+    map_vertex_len = len(map_vertices)
+    reduce_vertex_len = len(reduce_vertices)
+
+    x_axis = [i for i in range(dag_len)]
+    xmap_axis = [i for i in range(map_vertex_len)]
+    xreduce_axis = [i for i in range(reduce_vertex_len)]
     
-    y1_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_hdfs_data_map')] for i in range(8)]
-    y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_local_data_map')] for i in range(8)]
-    axs[0,0].bar(x_axis, y1_axis, color = 'b', width = 0.25) 
-    axs[0,0].bar(x_axis, y2_axis, color = 'g', width = 0.25) 
+    y1_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_hdfs_data_map')] for i in range(dag_len)]
+    y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_local_data_map')] for i in range(dag_len)]
+    y3_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_hdfs_data_map')] for i in range(dag_len)]
+    y4_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_local_data_map')] for i in range(dag_len)]
+    axs[0,0].plot(x_axis, y1_axis) 
+    axs[0,0].plot(x_axis, y2_axis) 
+    axs[0,0].plot(x_axis, y3_axis) 
+    axs[0,0].plot(x_axis, y4_axis) 
 
+    axs[0,0].set_ylabel('Correlation')
+    axs[0,0].set_xlabel('Queries')
+
+    y1_axis = [vertex[FilteredVertexProperties.index('avgTaskCPUutil')] for vertex in map_vertices]
+    axs[1,0].plot(xmap_axis, y1_axis) 
+    axs[1,0].set_ylabel('Utilization')
+    axs[1,0].set_xlabel('Vertices')
+
+    y1_axis = [vertex[FilteredVertexProperties.index('avgTaskSpilledRecordsPerSec')] for vertex in map_vertices]
+    axs[2,0].plot(xmap_axis, y1_axis) 
+    axs[2,0].set_ylabel('Task Spillage/Sec')
+    axs[2,0].set_xlabel('Vertices')
+
+    y1_axis = [vertex[FilteredVertexProperties.index('vertexSpilledRecordsPerSec')] for vertex in map_vertices]
+    axs[3,0].plot(xmap_axis, y1_axis) 
+    axs[3,0].set_ylabel('Vertex Spillage/Sec')
+    axs[3,0].set_xlabel('Vertices')
+
+
+
+    #y1_axis = [filteredVertexResults[i][FilteredDagProperties.index('avgTaskCPUutil')] for i in range(vertex_len)]
+    #axs[1,0].plot(x1_axis, y1_axis) 
+    #axs[1,0].set_ylabel('Utilization')
+    #axs[1,0].set_xlabel('Vertices')
+ 
+    y1_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_shuffle_data_reduce')] for i in range(dag_len)]
+    y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_local_data_reduce')] for i in range(dag_len)]
+    y3_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_shuffle_data_reduce')] for i in range(dag_len)]
+    y4_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_local_data_reduce')] for i in range(dag_len)]
+    axs[0,1].plot(x_axis, y1_axis) 
+    axs[0,1].plot(x_axis, y2_axis) 
+    axs[0,1].plot(x_axis, y3_axis) 
+    axs[0,1].plot(x_axis, y4_axis) 
+
+    axs[0,1].set_ylabel('Correlation')
+    axs[0,1].set_xlabel('Queries')
+
+    y1_axis = [vertex[FilteredVertexProperties.index('avgTaskCPUutil')] for vertex in reduce_vertices]
+    axs[1,1].plot(xreduce_axis, y1_axis) 
+    axs[1,1].set_ylabel('Utilization')
+    axs[1,1].set_xlabel('Vertices')
+
+    y1_axis = [vertex[FilteredVertexProperties.index('avgTaskSpilledRecordsPerSec')] for vertex in reduce_vertices]
+    axs[2,1].plot(xreduce_axis, y1_axis) 
+    axs[2,1].set_ylabel('Task Spillage/Sec')
+    axs[2,1].set_xlabel('Vertices')
+
+    y1_axis = [vertex[FilteredVertexProperties.index('vertexSpilledRecordsPerSec')] for vertex in reduce_vertices]
+    axs[3,1].plot(xreduce_axis, y1_axis) 
+    axs[3,1].set_ylabel('Vertex Spillage/Sec')
+    axs[3,1].set_xlabel('Vertices')
+    """
     y1_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_shuffle_data_reduce')] for i in range(8)]
     y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_cpu_local_data_reduce')] for i in range(8)]
     axs[0,1].bar(x_axis, y1_axis, color = 'b', width = 0.25) 
@@ -614,7 +678,7 @@ def plotGraph(filteredDagResults, filteredVertexResults):
     y2_axis = [filteredDagResults[i][FilteredDagProperties.index('corr_spillage_local_data_reduce')] for i in range(8)]
     axs[1,1].bar(x_axis, y1_axis, color = 'b', width = 0.25) 
     axs[1,1].bar(x_axis, y2_axis, color = 'g', width = 0.25) 
-
+    """
     plt.show()
 
 
@@ -646,7 +710,7 @@ def main():
     filteredVertexResults = filterVertex(vertexResults)
 
     saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
-#    plotGraph(filteredDagResults, filteredVertexResults)
+    plotGraph(filteredDagResults, filteredVertexResults)
 
 if __name__ == "__main__":
     main()
