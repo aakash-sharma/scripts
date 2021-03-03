@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 URI='http://0.0.0.0:8188/ws/v1/timeline/'
 
 DagProperties = ('dagId',
-                 'dagDesc',
+                 #'dagDesc',
                  'dagDescHash',
                  'status',
                  'applicationId',
@@ -170,45 +170,49 @@ def processDags():
         if dagJson['entities'][idx]['entity'] != dagJson2['entities'][idx]['entity']:
             print("{dagJson['entities'][idx]['entity']} doesnt match {dagJson2['entities'][idx]['entity']} at index {idx}")
             continue
+        if 'SUCCEEDED' != dagJson['entities'][idx]['otherinfo']['status']:
+            continue
+        if dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description'] in descs:
+            print("duplicate dag desc for dag id " + dagJson['entities'][idx]['entity'])
+            continue
+        
+        descs.add(dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description'])            
+   
         dagProperties = [None] * len(DagProperties)
         dagProperties[DagProperties.index('dagId')] = dagJson['entities'][idx]['entity']
         dagProperties[DagProperties.index('status')] = dagJson['entities'][idx]['otherinfo']['status']
         dagProperties[DagProperties.index('applicationId')] = dagJson['entities'][idx]['primaryfilters']['applicationId']
 
-        if 'SUCCEEDED' == dagJson['entities'][idx]['otherinfo']['status']:
-            dagProperties[DagProperties.index('startTime')] = dagJson['entities'][idx]['otherinfo']['startTime']
-            dagProperties[DagProperties.index('endTime')] = dagJson['entities'][idx]['otherinfo']['endTime']
-            dagProperties[DagProperties.index('initTime')] = dagJson['entities'][idx]['otherinfo']['initTime']
-            dagProperties[DagProperties.index('timeTaken')] = dagJson['entities'][idx]['otherinfo']['timeTaken']
-            dagProperties[DagProperties.index('dagDesc')] = dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description']
-            dagProperties[DagProperties.index('dagDescHash')] = hash(dagProperties[DagProperties.index('dagDesc')])
-#            print("Added hash " + str(dagProperties[DagProperties.index('dagDescHash')]))
+#       if 'SUCCEEDED' == dagJson['entities'][idx]['otherinfo']['status']:
+        dagProperties[DagProperties.index('startTime')] = dagJson['entities'][idx]['otherinfo']['startTime']
+        dagProperties[DagProperties.index('endTime')] = dagJson['entities'][idx]['otherinfo']['endTime']
+        dagProperties[DagProperties.index('initTime')] = dagJson['entities'][idx]['otherinfo']['initTime']
+        dagProperties[DagProperties.index('timeTaken')] = dagJson['entities'][idx]['otherinfo']['timeTaken']
+#        dagProperties[DagProperties.index('dagDesc')] = dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description']
 
-            if dagProperties[DagProperties.index('dagDesc')] in descs:
-               print("duplicate dag desc " + dagProperties[DagProperties.index('dagDesc')])
-            else:
-               descs.add(dagProperties[DagProperties.index('dagDesc')])            
+        dagProperties[DagProperties.index('dagDescHash')] = hash(dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description'])
 
-            dagProperties[DagProperties.index('vertexIds')] = dagJson['entities'][idx]['relatedentities']['TEZ_VERTEX_ID']
+#        print(dagProperties[DagProperties.index('dagDescHash')])
 
-            itr = dagJson2['entities'][idx]['otherinfo']['counters']['counterGroups']
+        dagProperties[DagProperties.index('vertexIds')] = dagJson['entities'][idx]['relatedentities']['TEZ_VERTEX_ID']
+        itr = dagJson2['entities'][idx]['otherinfo']['counters']['counterGroups']
 
-            for i in range(len(itr)):
-                if itr[i]['counterGroupName'] == 'org.apache.tez.common.counters.TaskCounter':
-                    for j in range(len(itr[i]['counters'])):
-                        if itr[i]['counters'][j]['counterName'] == 'SPILLED_RECORDS':
-                            dagProperties[DagProperties.index('spilledRecords')] = itr[i]['counters'][j]['counterValue']
-                        if itr[i]['counters'][j]['counterName'] == 'CPU_MILLISECONDS':
-                            dagProperties[DagProperties.index('CPUms')] = itr[i]['counters'][j]['counterValue']
-                        if itr[i]['counters'][j]['counterName'] == 'GC_TIME_MILLIS':
-                            dagProperties[DagProperties.index('GCms')] = itr[i]['counters'][j]['counterValue']
+        for i in range(len(itr)):
+            if itr[i]['counterGroupName'] == 'org.apache.tez.common.counters.TaskCounter':
+                for j in range(len(itr[i]['counters'])):
+                    if itr[i]['counters'][j]['counterName'] == 'SPILLED_RECORDS':
+                        dagProperties[DagProperties.index('spilledRecords')] = itr[i]['counters'][j]['counterValue']
+                    if itr[i]['counters'][j]['counterName'] == 'CPU_MILLISECONDS':
+                        dagProperties[DagProperties.index('CPUms')] = itr[i]['counters'][j]['counterValue']
+                    if itr[i]['counters'][j]['counterName'] == 'GC_TIME_MILLIS':
+                        dagProperties[DagProperties.index('GCms')] = itr[i]['counters'][j]['counterValue']
 
-                if itr[i]['counterGroupName'] == 'org.apache.tez.common.counters.FileSystemCounter':
-                    for j in range(len(itr[i]['counters'])):
-                        if itr[i]['counters'][j]['counterName'] == 'FILE_BYTES_READ':
-                            dagProperties[DagProperties.index('fileBytesRead')] = itr[i]['counters'][j]['counterValue']
-                        if itr[i]['counters'][j]['counterName'] == 'FILE_BYTES_WRITTEN':
-                            dagProperties[DagProperties.index('fileBytesWritten')] = itr[i]['counters'][j]['counterValue']
+            if itr[i]['counterGroupName'] == 'org.apache.tez.common.counters.FileSystemCounter':
+                for j in range(len(itr[i]['counters'])):
+                    if itr[i]['counters'][j]['counterName'] == 'FILE_BYTES_READ':
+                        dagProperties[DagProperties.index('fileBytesRead')] = itr[i]['counters'][j]['counterValue']
+                    if itr[i]['counters'][j]['counterName'] == 'FILE_BYTES_WRITTEN':
+                        dagProperties[DagProperties.index('fileBytesWritten')] = itr[i]['counters'][j]['counterValue']
 
         dagResults.append(dagProperties.copy())
         
