@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 URI='http://0.0.0.0:8188/ws/v1/timeline/'
 
 DagProperties = ('dagId',
+                 'dagDesc',
+                 'dagDescHash',
                  'status',
                  'applicationId',
                  'vertexIds',
@@ -129,6 +131,7 @@ def checkFileExists(fileName):
 def processDags():
   
     dagResults = []
+    descs = set()
     
     exists = checkFileExists('dags.json')
     
@@ -177,6 +180,15 @@ def processDags():
             dagProperties[DagProperties.index('endTime')] = dagJson['entities'][idx]['otherinfo']['endTime']
             dagProperties[DagProperties.index('initTime')] = dagJson['entities'][idx]['otherinfo']['initTime']
             dagProperties[DagProperties.index('timeTaken')] = dagJson['entities'][idx]['otherinfo']['timeTaken']
+            dagProperties[DagProperties.index('dagDesc')] = dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description']
+            dagProperties[DagProperties.index('dagDescHash')] = hash(dagProperties[DagProperties.index('dagDesc')])
+#            print("Added hash " + str(dagProperties[DagProperties.index('dagDescHash')]))
+
+            if dagProperties[DagProperties.index('dagDesc')] in descs:
+               print("duplicate dag desc " + dagProperties[DagProperties.index('dagDesc')])
+            else:
+               descs.add(dagProperties[DagProperties.index('dagDesc')])            
+
             dagProperties[DagProperties.index('vertexIds')] = dagJson['entities'][idx]['relatedentities']['TEZ_VERTEX_ID']
 
             itr = dagJson2['entities'][idx]['otherinfo']['counters']['counterGroups']
@@ -333,16 +345,17 @@ def processVertex(dagResults):
 
 def processVertex_(vertexId):
     exists = checkFileExists(vertexId + '.json')
-    if exists:
-        print(f"{vertexId}.json already exists, using the existing file")
-    else:
+  #  if exists:
+  #      print(f"{vertexId}.json already exists, using the existing file")
+  #  else:
+    if not exists:
         try:
             wget.download(URI + f'TEZ_VERTEX_ID/{vertexId}', f'{vertexId}.json')
         except:
             print(f"Unable to fetch timeline server endpoint {URI}TEZ_VERTEX_ID/{vertexId}")
             pass
             return
-    print(f"Processing {vertexId}.json\n")
+#    print(f"Processing {vertexId}.json\n")
     with open(f'{vertexId}.json') as fd:
         vertexJson = json.load(fd)
         
@@ -376,9 +389,10 @@ def processVertex_(vertexId):
             taskResults = []
             for task in vertexJson['relatedentities']['TEZ_TASK_ID']:
                 exists = checkFileExists(task + '.json')
-                if exists:
-                   print(f"{task}.json already exists, using the existing file")
-                else:
+                #if exists:
+                #   print(f"{task}.json already exists, using the existing file")
+                #else:
+                if not exists:
                     try:
                         wget.download(URI + 'TEZ_TASK_ID/' + task, task + '.json')
                     except:
@@ -386,7 +400,7 @@ def processVertex_(vertexId):
                         pass
                     continue
 
-                print(f"Processing {task}.json\n")
+                #print(f"Processing {task}.json\n")
 
                 with open(f'{task}.json') as fd2:
                     taskJson = json.load(fd2)
@@ -705,12 +719,12 @@ def main():
     
     os.chdir(workDir)
     dagResults = processDags()
-    vertexResults = processVertex(dagResults)
-    filteredDagResults = filterDags(dagResults, vertexResults)
-    filteredVertexResults = filterVertex(vertexResults)
+#    vertexResults = processVertex(dagResults)
+#    filteredDagResults = filterDags(dagResults, vertexResults)
+#    filteredVertexResults = filterVertex(vertexResults)
 
-    saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
-    plotGraph(filteredDagResults, filteredVertexResults)
+#    saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
+#    plotGraph(filteredDagResults, filteredVertexResults)
 
 if __name__ == "__main__":
     main()
