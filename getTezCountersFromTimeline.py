@@ -723,12 +723,12 @@ def main():
     
     os.chdir(workDir)
     dagResults = processDags()
-#    vertexResults = processVertex(dagResults)
-#    filteredDagResults = filterDags(dagResults, vertexResults)
-#    filteredVertexResults = filterVertex(vertexResults)
+    vertexResults = processVertex(dagResults)
+    filteredDagResults = filterDags(dagResults, vertexResults)
+    filteredVertexResults = filterVertex(vertexResults)
 
-#    saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
-#    plotGraph(filteredDagResults, filteredVertexResults)
+    saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
+    plotGraph(filteredDagResults, filteredVertexResults)
 
 if __name__ == "__main__":
     main()
