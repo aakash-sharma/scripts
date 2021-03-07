@@ -52,6 +52,7 @@ FilteredDagProperties = ('dagId',
 VertexProperties = ('vertexId',
                   'vertexName',
                   'dagId',
+                  'dagDescHash',
                   'applicationId',
                   'numSucceededTasks',
                   'startTime',
@@ -342,6 +343,7 @@ def processVertex(dagResults):
         for j in range(len(dagResults[i][DagProperties.index('vertexIds')])):
             vertexProperties = processVertex_(dagResults[i][DagProperties.index('vertexIds')][j])
             if vertexProperties:
+                vertexProperties[VertexProperties.index('dagDescHash')] = dagResults[i][DagProperties.index('dagDescHash')]
                 vertexResults.append(vertexProperties.copy())
 
     return vertexResults

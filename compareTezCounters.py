@@ -17,11 +17,10 @@ from getTezCountersFromTimeline import *
 
 START_SIZE = 50
 
+
 def plotGraphDag(filteredDagResults):
     fig, axs = plt.subplots(2, figsize=(12,6))
     n = len(filteredDagResults)
-    dag_len = 0
-    
     dag_len = len(filteredDagResults[0])
     
     x_axis = [i for i in range(dag_len)]
@@ -187,7 +186,85 @@ def cleanDags(dagResults):
                 del exp[i]
             else:
                 i += 1
-    
+
+def get_property(metrics):
+    if all((metrics[i] < metrics[i+1] for i in range(len(metrics)-1))):
+        return 1
+    if all((metrics[i] > metrics[i+1] for i in range(len(metrics)-1))):
+        return -1
+    if all((metrics[i] == metrics[i+1] for i in range(len(metrics)-1))):
+        return 0
+
+    return None
+
+def compareVertices(vertexExpResults, dagResult):
+
+    num_exps = len(vertexExpResults)
+    num_dags = len(dagResult)
+    cpu_inference = []
+    spillage_inference = []
+
+    idx_dict = {}
+
+    for i in range(len(dagResult)):
+        idx_dict[dagResult[i][DagProperties.index('dagDescHash')]] = i
+
+    data = [None] * num_exps
+
+    for i in range(len(vertexExpResults)):
+        data[i] = [None] * num_dags
+        for j in range(len(vertexExpResults[i])):
+            dagHash = vertexExpResults[i][j][VertexProperties.index('dagDescHash')]
+
+            if data[i][idx_dict[dagHash]] is None:
+                data[i][idx_dict[dagHash]] = [vertexExpResults[i][j]]
+            else:
+                data[i][idx_dict[dagHash]].append(vertexExpResults[i][j])
+
+    results = []
+
+    for i in range(num_dags):
+        dagId  = [dagResult[i][DagProperties.index('dagId')]]
+        dagHash = dagResult[i][DagProperties.index('dagDescHash')]
+        idx = idx_dict[dagHash]
+
+        vertices = data[0][idx]
+
+        for vertex in vertices:
+            cpu_utils = []
+            spillage = []
+            name = vertex[VertexProperties.index('vertexName')]
+            cpu_utils.append(vertex[VertexProperties.index('avgTaskCPUutil')])
+            spillage.append(vertex[VertexProperties.index('avgTaskSpilledRecordsPerSec')])
+            
+            flag = False
+           
+            for j in range(1, num_exps):
+                flag = False
+                for k in range(len(data[j][idx])):
+                    if name == data[j][idx][k][VertexProperties.index('vertexName')]:
+                        flag = True
+                        cpu_utils.append(data[j][idx][k][VertexProperties.index('avgTaskCPUutil')])
+                        spillage.append(data[j][idx][k][VertexProperties.index('avgTaskSpilledRecordsPerSec')])
+
+                if not flag:
+                    break
+            if flag:
+                cpu_prop = get_property(cpu_utils)
+                if cpu_prop is None:
+                    continue
+                cpu_utils.append(cpu_prop)
+                spillage_prop = get_property(spillage)
+                if spillage_prop is None:
+                    continue
+                spillage.append(spillage_prop)
+                result = dagId + cpu_utils + spillage 
+                results.append(result.copy())
+
+    print(results)       
+
+       
+
 def main():
 
     workDirs = []
@@ -220,8 +297,9 @@ def main():
         os.chdir("../")
 
 #    saveToXLS(dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
-    plotGraphDag(filteredDagResults)
-    plotGraphVertex(filteredVertexResults)
+    compareVertices(vertexResults, dagResults[0])
+#    plotGraphDag(filteredDagResults)
+#    plotGraphVertex(filteredVertexResults)
 
 if __name__ == "__main__":
     main()
