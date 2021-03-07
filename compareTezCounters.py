@@ -198,7 +198,34 @@ def get_property(metrics):
     return None
 
 def saveToXLS(vertexResults):
-    return None
+    style = xlwt.XFStyle()
+    style.num_format_str = '#,###0.00'
+    wrap_format = xlwt.XFStyle()
+    wrap_format.text_wrap = True
+
+    workbook = xlwt.Workbook()
+    worksheet1 = workbook.add_sheet('Vertex monotonicity')
+
+    column_list = zip(*vertexResults)
+    i = 0
+
+    for column in column_list:
+        for item in range(len(column)):
+            value = column[item]
+            if value == None:
+                value = 0
+            if type(value) is dict:
+                worksheet1.write(item, i, ',\n'.join('{} : {}'.format(key, val) for key, val in value.items()), style=wrap_format)
+            elif type(value) is list:
+                worksheet1.write(item, i, ',\n'.join(value), style=wrap_format)
+            elif is_number(value):
+                worksheet1.write(item, i, value, style=style)
+            else:
+                worksheet1.write(item, i, value)
+        i+=1
+
+    workbook.save('vertex_comparison.xls')
+
     
 
 def compareVertices(vertexExpResults, dagResult):
@@ -223,8 +250,7 @@ def compareVertices(vertexExpResults, dagResult):
             else:
                 data[i][idx_dict[dagHash]].append(vertexExpResults[i][j])
 
-    results = ['dagId'] + ['vertexId'] + ['vertexName'] + ['CPU_util'] * num_exps + ['CPU_monotonicity'] + ['Spillage'] * num_exps + ['Spillage_monotonicity']
-    print(results)
+    results = [['dagId'] + ['vertexId'] + ['vertexName'] + ['CPU_util'] * num_exps + ['CPU_monotonicity'] + ['Spillage'] * num_exps + ['Spillage_monotonicity']]
 
     for i in range(num_dags):
         dagId  = [dagResult[i][DagProperties.index('dagId')]]
@@ -263,6 +289,7 @@ def compareVertices(vertexExpResults, dagResult):
                 spillage.append(spillage_prop)
                 result = dagId + [vertex[VertexProperties.index('vertexId')]] + [name] + cpu_utils + spillage 
                 results.append(result.copy())
+    print(results)
 
     saveToXLS(results)
 
