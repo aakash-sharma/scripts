@@ -197,12 +197,14 @@ def get_property(metrics):
 
     return None
 
+def saveToXLS(vertexResults):
+    return None
+    
+
 def compareVertices(vertexExpResults, dagResult):
 
     num_exps = len(vertexExpResults)
     num_dags = len(dagResult)
-    cpu_inference = []
-    spillage_inference = []
 
     idx_dict = {}
 
@@ -221,7 +223,8 @@ def compareVertices(vertexExpResults, dagResult):
             else:
                 data[i][idx_dict[dagHash]].append(vertexExpResults[i][j])
 
-    results = []
+    results = ['dagId'] + ['vertexId'] + ['vertexName'] + ['CPU_util'] * num_exps + ['CPU_monotonicity'] + ['Spillage'] * num_exps + ['Spillage_monotonicity']
+    print(results)
 
     for i in range(num_dags):
         dagId  = [dagResult[i][DagProperties.index('dagId')]]
@@ -258,12 +261,12 @@ def compareVertices(vertexExpResults, dagResult):
                 if spillage_prop is None:
                     continue
                 spillage.append(spillage_prop)
-                result = dagId + cpu_utils + spillage 
+                result = dagId + [vertex[VertexProperties.index('vertexId')]] + [name] + cpu_utils + spillage 
                 results.append(result.copy())
 
-    print(results)       
+    saveToXLS(results)
 
-       
+
 
 def main():
 
