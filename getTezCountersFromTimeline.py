@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 URI='http://0.0.0.0:8188/ws/v1/timeline/'
 
 DagProperties = ('dagId',
-                 #'dagDesc',
+                 'dagDesc',
                  'dagDescHash',
                  'status',
                  'applicationId',
@@ -51,6 +51,7 @@ FilteredDagProperties = ('dagId',
 
 VertexProperties = ('vertexId',
                   'vertexName',
+                  'vertexManagerName',
                   'dagId',
                   'dagDescHash',
                   'applicationId',
@@ -100,6 +101,7 @@ VertexProperties = ('vertexId',
                   'RECORDS_OUT')
 
 FilteredVertexProperties = ('vertexName',
+                            'vertexManagerName',
                             'dagId',
                             'avgTaskCPUutil',
                             'spilledRecords',
@@ -189,7 +191,7 @@ def processDags():
         dagProperties[DagProperties.index('endTime')] = dagJson['entities'][idx]['otherinfo']['endTime']
         dagProperties[DagProperties.index('initTime')] = dagJson['entities'][idx]['otherinfo']['initTime']
         dagProperties[DagProperties.index('timeTaken')] = dagJson['entities'][idx]['otherinfo']['timeTaken']
-#        dagProperties[DagProperties.index('dagDesc')] = dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description']
+        dagProperties[DagProperties.index('dagDesc')] = dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description']
 
         dagProperties[DagProperties.index('dagDescHash')] = hash(dagJson2['entities'][idx]['otherinfo']['dagPlan']['dagContext']['description'])
 
@@ -371,6 +373,7 @@ def processVertex_(vertexId):
         vertexProperties = [None] * len(VertexProperties)
         vertexProperties[VertexProperties.index('vertexId')] = vertexId
         vertexProperties[VertexProperties.index('vertexName')] = vertexJson['otherinfo']['vertexName']
+        vertexProperties[VertexProperties.index('vertexManagerName')] = vertexJson['otherinfo']['vertexManagerName']
         vertexProperties[VertexProperties.index('dagId')] = vertexJson['primaryfilters']['TEZ_DAG_ID'][0]
         vertexProperties[VertexProperties.index('applicationId')] = vertexJson['primaryfilters']['applicationId'][0]
         #vertexProperties[VertexProperties.index('status')] = vertexJson['otherinfo']['status']
@@ -459,6 +462,7 @@ def filterVertex(vertexResults):
         filteredVertexProperties = [0] * len(FilteredVertexProperties)
         
         filteredVertexProperties[FilteredVertexProperties.index('vertexName')] = vertexResults[idx][VertexProperties.index('vertexName')]
+        filteredVertexProperties[FilteredVertexProperties.index('vertexManagerName')] = vertexResults[idx][VertexProperties.index('vertexManagerName')]
         filteredVertexProperties[FilteredVertexProperties.index('dagId')] = vertexResults[idx][VertexProperties.index('dagId')]
         filteredVertexProperties[FilteredVertexProperties.index('avgTaskCPUutil')] = vertexResults[idx][VertexProperties.index('avgTaskCPUutil')]
         filteredVertexProperties[FilteredVertexProperties.index('avgTaskSpilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('avgTaskSpilledRecordsPerSec')]
