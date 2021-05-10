@@ -125,8 +125,18 @@ TaskProperties = ('taskId',
 
 class TezCountersBase:
 
-    def __init__(self):
+    def __init__(self, workDir):
         self.dagResults = []
+        self.vertexResults = []
+        self.filteredDagResults = []
+        self.filteredVertexResults = []
+
+        os.chdir(workDir)
+    
+        self.processDags()
+        self.processVertex(self.dagResults)
+        self.filterDags(self.dagResults, self.vertexResults)
+        self.filterVertex(self.vertexResults)
 
 
     def checkFileExists(self, fileName):
@@ -224,7 +234,6 @@ class TezCountersBase:
             self.dagResults.append(dagProperties.copy())
             
     def filterDags(self, dagResults, vertexResults):
-        filteredDagResults = []
         verticesFromResults = {}
         for i in range(len(vertexResults)):
             verticesFromResults[vertexResults[i][VertexProperties.index('vertexId')]] = i 
@@ -333,12 +342,9 @@ class TezCountersBase:
                 filteredDagProperties[FilteredDagProperties.index('corr_spillage_local_data_reduce')], _ = pearsonr(spillage_vertex_reduce, file_data_vertex_reduce)
                 filteredDagProperties[FilteredDagProperties.index('corr_spillage_shuffle_data_reduce')], _ = pearsonr(spillage_vertex_reduce, shuffle_data_vertex_reduce)
 
-            filteredDagResults.append(filteredDagProperties.copy())
+            self.filteredDagResults.append(filteredDagProperties.copy())
 
-        return filteredDagResults
-      
     def processVertex(self, dagResults):
-        vertexResults = []
 
         for i in range(len(dagResults)):
             if dagResults[i][DagProperties.index('status')] != 'SUCCEEDED':
@@ -348,9 +354,7 @@ class TezCountersBase:
                 vertexProperties = self.processVertex_(dagResults[i][DagProperties.index('vertexIds')][j])
                 if vertexProperties:
                     vertexProperties[VertexProperties.index('dagDescHash')] = dagResults[i][DagProperties.index('dagDescHash')]
-                    vertexResults.append(vertexProperties.copy())
-
-        return vertexResults
+                    self.vertexResults.append(vertexProperties.copy())
 
 
     def processVertex_(self, vertexId):
@@ -458,7 +462,6 @@ class TezCountersBase:
             return vertexProperties
 
     def filterVertex(self, vertexResults):
-        filteredVertexResults = []
 
         for idx in range(len(vertexResults)):
             filteredVertexProperties = [0] * len(FilteredVertexProperties)
@@ -489,9 +492,7 @@ class TezCountersBase:
             if vertexResults[idx][VertexProperties.index('endTime')] != None and vertexResults[idx][VertexProperties.index('startTime')] != None:
                 filteredVertexProperties[FilteredVertexProperties.index('vertexSpilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] // (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000 
 
-            filteredVertexResults.append(filteredVertexProperties.copy())
-
-        return filteredVertexResults
+            self.filteredVertexResults.append(filteredVertexProperties.copy())
 
 
     def is_number(self, s):
@@ -688,37 +689,25 @@ class TezCountersBase:
 
 
 def main():
-    startedOn = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
-    print(startedOn)
+
+    resultName = None
 
     if len(sys.argv) > 1:
-        workDir = sys.argv[1]
-        startedOn = workDir
-
-    #    if len(sys.argv) >= 3:
-    #        workDir = sys.argv[2]
-    #        print(f"Will attempt to use preexisting data in {workDir}")
-#
-#        else:
-#            workDir = sys.argv[1] + os.path.sep + startedOn
+        workDir = os.getcwd() + '/' + sys.argv[1]
+        resultName = sys.argv[1]
     else:
-        workDir = startedOn
+        resultName = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
+        workDir = os.getcwd() + '/' + resultName
 
     exists = os.path.isdir(workDir)
+
     if not exists:
-            os.mkdir(workDir)
+        os.mkdir(workDir)
     
-    os.chdir(workDir)
-    
-    tez = TezCountersBase()
+    tez = TezCountersBase(workDir)
 
-    tez.processDags()
-    vertexResults = tez.processVertex(tez.dagResults)
-    filteredDagResults = tez.filterDags(tez.dagResults, vertexResults)
-    filteredVertexResults = tez.filterVertex(vertexResults)
-
-    tez.saveToXLS(tez.dagResults, vertexResults, filteredDagResults, filteredVertexResults, startedOn)
-    tez.plotGraph(filteredDagResults, filteredVertexResults)
+    tez.saveToXLS(tez.dagResults, tez.vertexResults, tez.filteredDagResults, tez.filteredVertexResults, resultName)
+    tez.plotGraph(tez.filteredDagResults, tez.filteredVertexResults)
 
 if __name__ == "__main__":
     main()
