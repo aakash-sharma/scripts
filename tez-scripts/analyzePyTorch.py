@@ -26,6 +26,8 @@ from TezCountersBase import TezCountersBase, VertexProperties
 
 NUM_INPUT = 5
 NUM_OUTPUT = 2
+BYTE_DIVIDE=1024*1024
+TIME_DIVIDE=1000 * 60
 
 
 class TezCountersData(Dataset):
@@ -36,31 +38,41 @@ class TezCountersData(Dataset):
         self.vertexData = []
 
         for wd in workDirs:
-            tez = TezCountersBase(wd)
-            for vertex in tez.vertexResults:
-                result = []
-                result.append(self.codeVertexManager(vertex[VertexProperties.index('vertexManagerName')]))
-                result.append(vertex[VertexProperties.index('runTime')])
-                #result.append(vertex[VertexProperties.index('HDFS_BYTES_READ')])
-                #result.append(vertex[VertexProperties.index('HDFS_BYTES_WRITTEN')])
-                result.append(vertex[VertexProperties.index('FILE_BYTES_READ')])
-                result.append(vertex[VertexProperties.index('FILE_BYTES_WRITTEN')])
-                result.append(vertex[VertexProperties.index('SHUFFLE_BYTES')])
-                result.append(vertex[VertexProperties.index('avgTaskCPUutil')])
-                result.append(vertex[VertexProperties.index('SPILLED_RECORDS')])
-                self.vertexData.append(result.copy())
+            results = []
+            exists = os.path.isfile(wd + "/data.npy")
+            if exists:
+                results = np.load(wd + "/data.npy")
 
-            del tez
+            else:
+                tez = TezCountersBase(wd)
+                for vertex in tez.vertexResults:
+                    result = []
+                    result.append(self.codeVertexManager(vertex[VertexProperties.index('vertexManagerName')]))
+                    result.append(vertex[VertexProperties.index('runTime')]//TIME_DIVIDE)
+                    #result.append(vertex[VertexProperties.index('HDFS_BYTES_READ')])
+                    #result.append(vertex[VertexProperties.index('HDFS_BYTES_WRITTEN')])
+                    result.append(vertex[VertexProperties.index('FILE_BYTES_READ')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('FILE_BYTES_WRITTEN')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('SHUFFLE_BYTES')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('avgTaskCPUutil')])
+                    result.append(vertex[VertexProperties.index('SPILLED_RECORDS')])
+                    results.append(result.copy())
+
+                del tez
+                np.save(wd + "/data.npy", np.array(results))
+
+            self.vertexData.extend(results)
             os.chdir(self.cwd)
 
         self.vertexData = np.array(self.vertexData)
+        print(self.vertexData.shape)
         
         self.X = self.vertexData[:,1:NUM_INPUT].astype('float32')
-        self.normalize(self.X)
+        #self.normalize(self.X)
         self.X = np.append(self.X, self.vertexData[:,:1].astype('float32'), axis=1)
 
         self.Y = self.vertexData[:,NUM_INPUT:].astype('float32')
-        self.normalize(self.Y)
+        #self.normalize(self.Y)
         self.Y = self.Y.reshape((len(self.Y), 2))
 
 
@@ -160,7 +172,7 @@ def train_model(train_dl, model):
             optimizer.step()
             #print('target: ', targets)
             print('batch ', i, ', loss: ', loss)
-        print(yhat)
+        #print(yhat)
     print('Finished training')
 
 # evaluate the model
