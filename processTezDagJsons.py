@@ -378,7 +378,8 @@ def saveToXLS(dagResults, dagExtraInfoResults, vertexResults, startedOn):
 
 def main():
     startedOn = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
-    workDir = os.getcwd()
+    #workDir = os.getcwd()
+    workDir = os.getcwd() + os.path.sep + startedOn
   
     if len(sys.argv) > 1:
         resultDir = sys.argv[1]
@@ -395,7 +396,8 @@ def main():
         else:
             print(f"Will attempt to use preexisting data in {workDir}")
     else:
-            print(f"Will attempt to use preexisting data in {workDir}")
+        os.mkdir(workDir)
+        print(f"Will attempt to use {workDir}")
     
     os.chdir(workDir)
     dagResults = processDag()

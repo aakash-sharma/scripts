@@ -59,6 +59,7 @@ VertexProperties = ('vertexId',
                   'startTime',
                   'endTime',
                   'initTime',
+                  'runTime',
                   'avgTaskCPUutil',
                   'avgTaskSpilledRecordsPerSec',
                   'FILE_BYTES_READ',
@@ -135,8 +136,8 @@ class TezCountersBase:
     
         self.processDags()
         self.processVertex(self.dagResults)
-        self.filterDags(self.dagResults, self.vertexResults)
-        self.filterVertex(self.vertexResults)
+        #self.filterDags(self.dagResults, self.vertexResults)
+        #self.filterVertex(self.vertexResults)
 
 
     def checkFileExists(self, fileName):
@@ -376,7 +377,7 @@ class TezCountersBase:
             if 'SUCCEEDED' != vertexJson['otherinfo']['status'] or vertexJson['otherinfo']['numSucceededTasks'] == 0:
                return None
 
-            vertexProperties = [None] * len(VertexProperties)
+            vertexProperties = [0] * len(VertexProperties)
             vertexProperties[VertexProperties.index('vertexId')] = vertexId
             vertexProperties[VertexProperties.index('vertexName')] = vertexJson['otherinfo']['vertexName']
             vertexProperties[VertexProperties.index('vertexManagerName')] = vertexJson['otherinfo']['vertexManagerName']
@@ -386,6 +387,7 @@ class TezCountersBase:
             vertexProperties[VertexProperties.index('startTime')] = vertexJson['otherinfo']['startTime']
             vertexProperties[VertexProperties.index('endTime')] = vertexJson['otherinfo']['endTime']
             vertexProperties[VertexProperties.index('initTime')] = vertexJson['otherinfo']['initTime']
+            vertexProperties[VertexProperties.index('runTime')] = vertexProperties[VertexProperties.index('endTime')] - vertexProperties[VertexProperties.index('startTime')]
             vertexProperties[VertexProperties.index('numSucceededTasks')] = vertexJson['otherinfo']['numSucceededTasks']
 
             if 'counters' not in vertexJson['otherinfo'].keys():
@@ -472,6 +474,9 @@ class TezCountersBase:
             filteredVertexProperties[FilteredVertexProperties.index('avgTaskCPUutil')] = vertexResults[idx][VertexProperties.index('avgTaskCPUutil')]
             filteredVertexProperties[FilteredVertexProperties.index('avgTaskSpilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('avgTaskSpilledRecordsPerSec')]
 
+            if vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] == None:
+                vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
+
             filteredVertexProperties[FilteredVertexProperties.index('spilledRecords')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')]
 
             if vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] == None:
@@ -486,9 +491,6 @@ class TezCountersBase:
             filteredVertexProperties[FilteredVertexProperties.index('shuffleBytes')] = vertexResults[idx][VertexProperties.index('SHUFFLE_BYTES')]
             filteredVertexProperties[FilteredVertexProperties.index('totalBytes')] = (vertexResults[idx][VertexProperties.index('HDFS_BYTES_READ')] + vertexResults[idx][VertexProperties.index('FILE_BYTES_READ')] + vertexResults[idx][VertexProperties.index('SHUFFLE_BYTES')])
             
-            if vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] == None:
-                vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] = 0
-
             if vertexResults[idx][VertexProperties.index('endTime')] != None and vertexResults[idx][VertexProperties.index('startTime')] != None:
                 filteredVertexProperties[FilteredVertexProperties.index('vertexSpilledRecordsPerSec')] = vertexResults[idx][VertexProperties.index('SPILLED_RECORDS')] // (vertexResults[idx][VertexProperties.index('endTime')] - vertexResults[idx][VertexProperties.index('startTime')]) * 1000 
 
