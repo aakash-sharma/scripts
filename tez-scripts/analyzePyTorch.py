@@ -24,8 +24,8 @@ from torch.nn.init import xavier_uniform_
 from torchvision import transforms
 from TezCountersBase import TezCountersBase, VertexProperties
 
-NUM_INPUT = 7
-NUM_OUTPUT = 2
+NUM_INPUT = 6
+NUM_OUTPUT = 1
 BYTE_DIVIDE=1024*1024
 TIME_DIVIDE=1000 * 60
 
@@ -47,15 +47,15 @@ class TezCountersData(Dataset):
                 tez = TezCountersBase(wd)
                 for vertex in tez.vertexResults:
                     result = []
-                    result.append(self.codeVertexManager(vertex[VertexProperties.index('vertexManagerName')]))
+                    #result.append(self.codeVertexManager(vertex[VertexProperties.index('vertexManagerName')]))
                     result.append(vertex[VertexProperties.index('runTime')]//TIME_DIVIDE)
-                    result.append(vertex[VertexProperties.index('HDFS_BYTES_READ')])
-                    result.append(vertex[VertexProperties.index('HDFS_BYTES_WRITTEN')])
+                    result.append(vertex[VertexProperties.index('HDFS_BYTES_READ')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('HDFS_BYTES_WRITTEN')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('FILE_BYTES_READ')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('FILE_BYTES_WRITTEN')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('SHUFFLE_BYTES')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('avgTaskCPUutil')])
-                    result.append(vertex[VertexProperties.index('SPILLED_RECORDS')])
+                    #result.append(vertex[VertexProperties.index('SPILLED_RECORDS')])
                     results.append(result.copy())
 
                 del tez
@@ -69,12 +69,15 @@ class TezCountersData(Dataset):
         
         #self.X = self.vertexData[:,:NUM_INPUT].astype('float32')
         self.X = self.vertexData[:,1:NUM_INPUT].astype('float32')
-        self.normalize(self.X)
+        self.X = self.normalize(self.X)
+        #print(self.X)
         self.X = np.append(self.X, self.vertexData[:,:1].astype('float32'), axis=1)
 
         self.Y = self.vertexData[:,NUM_INPUT:].astype('float32')
-        #self.normalize(self.Y)
-        self.Y = self.Y.reshape((len(self.Y), 2))
+        self.Y = self.normalize(self.Y)
+        self.Y = self.Y.reshape((len(self.Y), NUM_OUTPUT))
+
+        #print(self.Y)
 
 
     def __len__(self):
@@ -97,26 +100,40 @@ class TezCountersData(Dataset):
 
         if manager == "ShuffleVertexManager":
             return 1
-
+    """
     def normalize(self, data):
-        means = np.mean(data, axis = 0)
-        stds = np.var(data, axis = 0)
+        means = np.mean(data, axis = 0).reshape(1,data.shape[1])
+        stds = np.var(data, axis = 0).reshape(1, data.shape[1])
+        print(means.shape, stds.shape, data.shape)
         data = (data-means)/stds
+    """
+    def normalize(self, data):
+        mins = np.min(data, axis = 0)
+        maxs = np.max(data, axis = 0)
 
+        data = (data-mins)/(maxs-mins)
+        return data
 
 class NNmodel(nn.Module):
     def __init__(self, n_inputs):
         super(NNmodel, self).__init__()
 
-        self.hidden1 = Linear(n_inputs, NUM_INPUT*NUM_OUTPUT*NUM_INPUT)
+        self.hidden1 = Linear(n_inputs, NUM_INPUT*(NUM_INPUT-1))
         #xavier_uniform_(self.hidden1.weight)
         #self.act_rel1 = ReLU()
-        self.act_rel1 = Sigmoid()
-        self.hidden2 = Linear(NUM_OUTPUT*NUM_INPUT*NUM_INPUT, NUM_INPUT)
+        self.act_rel1 = ReLU()
+        self.hidden2 = Linear(NUM_INPUT*(NUM_INPUT-1), NUM_INPUT*(NUM_INPUT-1))
         #xavier_uniform_(self.hidden2.weight)
 #        self.act_rel2 = ReLU()
-        self.act_rel2 = Sigmoid()
-        self.hidden3 = Linear(NUM_INPUT, NUM_OUTPUT)
+        self.act_rel2 = ReLU()
+        self.hidden3 = Linear(NUM_INPUT*(NUM_INPUT-1), NUM_INPUT*(NUM_INPUT-1))
+        self.act_rel3 = ReLU()
+        self.hidden4 = Linear(NUM_INPUT*(NUM_INPUT-1), NUM_INPUT*(NUM_INPUT-1))
+        self.act_rel4 = ReLU()
+        self.hidden5 = Linear(NUM_INPUT*(NUM_INPUT-1), NUM_INPUT)
+        self.act_rel5 = ReLU()
+        self.hidden6 = Linear(NUM_INPUT, NUM_OUTPUT)
+        #self.act_rel6 = Sigmoid()
         #self.hidden3 = Linear(NUM_INPUT, 1)
         #xavier_uniform_(self.hidden3.weight)
         #self.act_sig = Sigmoid()
@@ -127,6 +144,15 @@ class NNmodel(nn.Module):
         X = self.hidden2(X)
         X = self.act_rel2(X)
         X = self.hidden3(X)
+        X = self.act_rel3(X)
+        X = self.hidden3(X)
+        X = self.act_rel4(X)
+        X = self.hidden4(X)
+        X = self.act_rel4(X)
+        X = self.hidden5(X)
+        X = self.act_rel5(X)
+        X = self.hidden6(X)
+ #       X = self.act_rel6(X)
 
         return X
                 
@@ -137,7 +163,7 @@ def prepare_data(workDirs):
     # calculate split
     train, test = dataset.get_splits()
     # prepare data loaders
-    train_dl = DataLoader(train, batch_size=len(train), shuffle=True)
+    train_dl = DataLoader(train, batch_size=32, shuffle=True)
     test_dl = DataLoader(test, batch_size=32, shuffle=False)
     return train_dl, test_dl
 
@@ -146,7 +172,7 @@ def train_model(train_dl, model):
     # define the optimization
     criterion = MSELoss()
 #    criterion = CrossEntropyLoss()
-    optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9)
+    optimizer = SGD(model.parameters(), lr=.01, momentum=0.9)
     # enumerate epochs
     for epoch in range(20):
         print('Training epoch ', epoch)
@@ -227,9 +253,9 @@ def main():
     # evaluate the model
     #mse = evaluate_model(test_dl, model)
     #model.eval()
-#    mse = evaluate_model(train_dl, model)
-#    print('MSE: %.3f, RMSE: %.3f' % (mse, sqrt(mse)))
-#    row = [0, 7641, 104457151, 0, 8672, 130778, 0]
+    mse = evaluate_model(test_dl, model)
+    print('MSE: %.3f, RMSE: %.3f' % (mse, sqrt(mse)))
+#    row = [0, 7641, 104457151,, 104457151, 104457151, 0, 8672, 130778, 0]
  #   yhat = predict(row, model)
  #   print(yhat)
 
