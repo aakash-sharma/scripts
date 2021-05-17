@@ -24,7 +24,7 @@ from torch.nn.init import xavier_uniform_
 from torchvision import transforms
 from TezCountersBase import TezCountersBase, VertexProperties
 
-NUM_INPUT = 5
+NUM_INPUT = 7
 NUM_OUTPUT = 2
 BYTE_DIVIDE=1024*1024
 TIME_DIVIDE=1000 * 60
@@ -49,8 +49,8 @@ class TezCountersData(Dataset):
                     result = []
                     result.append(self.codeVertexManager(vertex[VertexProperties.index('vertexManagerName')]))
                     result.append(vertex[VertexProperties.index('runTime')]//TIME_DIVIDE)
-                    #result.append(vertex[VertexProperties.index('HDFS_BYTES_READ')])
-                    #result.append(vertex[VertexProperties.index('HDFS_BYTES_WRITTEN')])
+                    result.append(vertex[VertexProperties.index('HDFS_BYTES_READ')])
+                    result.append(vertex[VertexProperties.index('HDFS_BYTES_WRITTEN')])
                     result.append(vertex[VertexProperties.index('FILE_BYTES_READ')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('FILE_BYTES_WRITTEN')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('SHUFFLE_BYTES')]//BYTE_DIVIDE)
@@ -67,20 +67,14 @@ class TezCountersData(Dataset):
         self.vertexData = np.array(self.vertexData)
         print(self.vertexData.shape)
         
+        #self.X = self.vertexData[:,:NUM_INPUT].astype('float32')
         self.X = self.vertexData[:,1:NUM_INPUT].astype('float32')
-        #self.normalize(self.X)
+        self.normalize(self.X)
         self.X = np.append(self.X, self.vertexData[:,:1].astype('float32'), axis=1)
 
         self.Y = self.vertexData[:,NUM_INPUT:].astype('float32')
         #self.normalize(self.Y)
         self.Y = self.Y.reshape((len(self.Y), 2))
-
-
-#        transform = transforms.Compose([
-#          transforms.ToTensor(),
-#        transforms.Normalize(mean=[.5],
-#                         std=[1])
-#        ])
 
 
     def __len__(self):
@@ -120,8 +114,8 @@ class NNmodel(nn.Module):
         self.act_rel1 = Sigmoid()
         self.hidden2 = Linear(NUM_OUTPUT*NUM_INPUT*NUM_INPUT, NUM_INPUT)
         #xavier_uniform_(self.hidden2.weight)
-        self.act_rel2 = ReLU()
-#        self.act_rel2 = Sigmoid()
+#        self.act_rel2 = ReLU()
+        self.act_rel2 = Sigmoid()
         self.hidden3 = Linear(NUM_INPUT, NUM_OUTPUT)
         #self.hidden3 = Linear(NUM_INPUT, 1)
         #xavier_uniform_(self.hidden3.weight)
