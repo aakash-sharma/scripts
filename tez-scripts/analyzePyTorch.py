@@ -24,8 +24,10 @@ from torch.nn.init import xavier_uniform_
 from torchvision import transforms
 from TezCountersBase import TezCountersBase, VertexProperties
 
-NUM_INPUT = 6
+NUM_INPUT = 8
 NUM_OUTPUT = 1
+BS=32
+EPOCHS=20
 BYTE_DIVIDE=1024*1024
 TIME_DIVIDE=1000 * 60
 
@@ -40,6 +42,7 @@ class TezCountersData(Dataset):
         for wd in workDirs:
             results = []
             exists = os.path.isfile(wd + "/data.npy")
+          #  if False:
             if exists:
                 results = np.load(wd + "/data.npy")
 
@@ -47,15 +50,15 @@ class TezCountersData(Dataset):
                 tez = TezCountersBase(wd)
                 for vertex in tez.vertexResults:
                     result = []
-                    #result.append(self.codeVertexManager(vertex[VertexProperties.index('vertexManagerName')]))
+                    result.append(self.codeVertexManager(vertex[VertexProperties.index('vertexManagerName')]))
                     result.append(vertex[VertexProperties.index('runTime')]//TIME_DIVIDE)
                     result.append(vertex[VertexProperties.index('HDFS_BYTES_READ')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('HDFS_BYTES_WRITTEN')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('FILE_BYTES_READ')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('FILE_BYTES_WRITTEN')]//BYTE_DIVIDE)
                     result.append(vertex[VertexProperties.index('SHUFFLE_BYTES')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('SPILLED_RECORDS')])
                     result.append(vertex[VertexProperties.index('avgTaskCPUutil')])
-                    #result.append(vertex[VertexProperties.index('SPILLED_RECORDS')])
                     results.append(result.copy())
 
                 del tez
@@ -65,19 +68,19 @@ class TezCountersData(Dataset):
             os.chdir(self.cwd)
 
         self.vertexData = np.array(self.vertexData)
-        print(self.vertexData.shape)
+#        print(self.vertexData.shape)
         
         #self.X = self.vertexData[:,:NUM_INPUT].astype('float32')
-        self.X = self.vertexData[:,1:NUM_INPUT].astype('float32')
+        self.X = self.vertexData[:,2:NUM_INPUT].astype('float32')
         self.X = self.normalize(self.X)
-        #print(self.X)
-        self.X = np.append(self.X, self.vertexData[:,:1].astype('float32'), axis=1)
+        self.X = np.append(self.X, self.vertexData[:,:2].astype('float32'), axis=1)
+        print(self.X.shape)
 
         self.Y = self.vertexData[:,NUM_INPUT:].astype('float32')
         self.Y = self.normalize(self.Y)
         self.Y = self.Y.reshape((len(self.Y), NUM_OUTPUT))
 
-        #print(self.Y)
+        print(self.Y.shape)
 
 
     def __len__(self):
@@ -145,8 +148,6 @@ class NNmodel(nn.Module):
         X = self.act_rel2(X)
         X = self.hidden3(X)
         X = self.act_rel3(X)
-        X = self.hidden3(X)
-        X = self.act_rel4(X)
         X = self.hidden4(X)
         X = self.act_rel4(X)
         X = self.hidden5(X)
@@ -163,8 +164,8 @@ def prepare_data(workDirs):
     # calculate split
     train, test = dataset.get_splits()
     # prepare data loaders
-    train_dl = DataLoader(train, batch_size=32, shuffle=True)
-    test_dl = DataLoader(test, batch_size=32, shuffle=False)
+    train_dl = DataLoader(train, batch_size=BS, shuffle=True)
+    test_dl = DataLoader(test, batch_size=BS, shuffle=False)
     return train_dl, test_dl
 
 # train the model
@@ -174,7 +175,7 @@ def train_model(train_dl, model):
 #    criterion = CrossEntropyLoss()
     optimizer = SGD(model.parameters(), lr=.01, momentum=0.9)
     # enumerate epochs
-    for epoch in range(20):
+    for epoch in range(EPOCHS):
         print('Training epoch ', epoch)
         # enumerate mini batches
         for i, (inputs, targets) in enumerate(train_dl):
@@ -248,11 +249,8 @@ def main():
 
     model = NNmodel(NUM_INPUT)
     print(model)
-    #return
     train_model(train_dl, model)
-    # evaluate the model
-    #mse = evaluate_model(test_dl, model)
-    #model.eval()
+#    model.eval()
     mse = evaluate_model(test_dl, model)
     print('MSE: %.3f, RMSE: %.3f' % (mse, sqrt(mse)))
 #    row = [0, 7641, 104457151,, 104457151, 104457151, 0, 8672, 130778, 0]
