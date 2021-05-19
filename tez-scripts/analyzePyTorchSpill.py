@@ -1,0 +1,266 @@
+import sys
+import os
+from os import listdir
+import datetime
+import matplotlib.pyplot as plt
+import numpy as np
+from numpy import vstack
+from numpy import sqrt
+from sklearn.metrics import mean_squared_error
+import torch
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
+from torch.utils.data import random_split
+from torch import nn
+from torch import Tensor
+from torch.nn import Linear
+from torch.nn import ReLU
+from torch.nn import Sigmoid
+from torch.nn import Module
+from torch.optim import SGD
+from torch.nn import MSELoss
+from torch.nn import CrossEntropyLoss
+from torch.nn.init import xavier_uniform_
+from torchvision import transforms
+from TezCountersBase import TezCountersBase, VertexProperties
+
+NUM_INPUT = 7
+NUM_OUTPUT = 2
+BS=32
+EPOCHS=20
+BYTE_DIVIDE=1024*1024
+TIME_DIVIDE=1000 * 60
+RECORD_DIVIDE = 1024
+NUM=1
+SPLITS=.2
+LR=.01
+
+
+class TezCountersData(Dataset):
+
+    def __init__(self, workDirs):
+        self.exps = []
+        self.cwd = os.getcwd()
+        self.vertexData = []
+
+        for wd in workDirs:
+            results = []
+            exists = os.path.isfile(wd + "/data-spill.npy")
+          #  if False:
+            if exists:
+                results = np.load(wd + "/data-spill.npy")
+
+            else:
+                tez = TezCountersBase(wd)
+                for vertex in tez.vertexResults:
+                    result = []
+                    result.append(self.codeVertexManager(vertex[VertexProperties.index('vertexManagerName')]))
+                    result.append(vertex[VertexProperties.index('numTasks')])
+                    result.append(vertex[VertexProperties.index('RECORDS_IN')]//BYTE_DIVIDE)
+                    #result.append(vertex[VertexProperties.index('runTime')]//TIME_DIVIDE)
+                    result.append(vertex[VertexProperties.index('HDFS_BYTES_READ')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('HDFS_BYTES_WRITTEN')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('FILE_BYTES_READ')]//BYTE_DIVIDE)
+                    #result.append(vertex[VertexProperties.index('FILE_BYTES_WRITTEN')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('SHUFFLE_BYTES')]//BYTE_DIVIDE)
+                    result.append(vertex[VertexProperties.index('SPILLED_RECORDS')])
+                    result.append(vertex[VertexProperties.index('avgTaskCPUutil')])
+                    results.append(result.copy())
+
+                del tez
+                np.save(wd + "/data-spill.npy", np.array(results))
+
+            self.vertexData.extend(results)
+            os.chdir(self.cwd)
+
+        self.vertexData = np.array(self.vertexData)
+#        print(self.vertexData.shape)
+        
+        #self.X = self.vertexData[:,:NUM_INPUT].astype('float32')
+        self.X = self.vertexData[:,2:NUM_INPUT].astype('float32')
+        self.X = self.normalize(self.X)
+        self.X = np.append(self.X, self.vertexData[:,:2].astype('float32'), axis=1)
+        print(self.X.shape)
+
+        self.Y = self.vertexData[:,NUM_INPUT:].astype('float32')
+        self.Y = self.normalize(self.Y)
+        self.Y = self.Y.reshape((len(self.Y), NUM_OUTPUT))
+
+        print(self.Y.shape)
+
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return [self.X[idx], self.Y[idx]]
+
+    def get_splits(self, n_test=SPLITS):
+        # determine sizes
+        test_size = round(n_test * len(self.X))
+        train_size = len(self.X) - test_size
+        # calculate the split
+        return random_split(self, [train_size, test_size])
+
+
+    def codeVertexManager(self, manager):
+        if manager == "RootInputVertexManager":
+            return 0
+
+        if manager == "ShuffleVertexManager":
+            return 1
+    """
+    def normalize(self, data):
+        means = np.mean(data, axis = 0).reshape(1,data.shape[1])
+        stds = np.var(data, axis = 0).reshape(1, data.shape[1])
+        print(means.shape, stds.shape, data.shape)
+        data = (data-means)/stds
+    """
+    def normalize(self, data):
+        mins = np.min(data, axis = 0)
+        maxs = np.max(data, axis = 0)
+
+        data = (data-mins)/(maxs-mins)
+        return data
+
+class NNmodel(nn.Module):
+    def __init__(self, n_inputs):
+        super(NNmodel, self).__init__()
+
+        self.hidden1 = Linear(n_inputs, NUM_INPUT*(NUM_INPUT-NUM))
+        #xavier_uniform_(self.hidden1.weight)
+        self.act_rel1 = ReLU()
+        self.hidden2 = Linear(NUM_INPUT*(NUM_INPUT-NUM), NUM_INPUT*(NUM_INPUT-NUM))
+        self.act_rel2 = ReLU()
+        self.hidden3 = Linear(NUM_INPUT*(NUM_INPUT-NUM), NUM_INPUT*(NUM_INPUT-NUM))
+        self.act_rel3 = ReLU()
+        self.hidden4 = Linear(NUM_INPUT*(NUM_INPUT-NUM), NUM_INPUT*(NUM_INPUT-NUM))
+        self.act_rel4 = ReLU()
+        self.hidden5 = Linear(NUM_INPUT*(NUM_INPUT-NUM), NUM_INPUT*(NUM_INPUT-NUM))
+        self.act_rel5 = ReLU()
+#        self.hidden6 = Linear(NUM_INPUT*(NUM_INPUT-NUM), NUM_INPUT*(NUM_INPUT-NUM))
+        self.hidden6 = Linear(NUM_INPUT*(NUM_INPUT-NUM), NUM_OUTPUT)
+        self.act_rel6 = ReLU()
+        self.hidden7 = Linear(NUM_INPUT*(NUM_INPUT-NUM), NUM_OUTPUT)
+        #self.act_rel7 = ReLU()
+
+    def forward(self, X):
+        X = self.hidden1(X)
+        X = self.act_rel1(X)
+        X = self.hidden2(X)
+        X = self.act_rel2(X)
+        X = self.hidden3(X)
+        X = self.act_rel3(X)
+        X = self.hidden4(X)
+        X = self.act_rel4(X)
+        X = self.hidden5(X)
+        X = self.act_rel5(X)
+        X = self.hidden6(X)
+
+        return X
+                
+# prepare the dataset
+def prepare_data(workDirs):
+    # load the dataset
+    dataset = TezCountersData(workDirs)
+    # calculate split
+    train, test = dataset.get_splits()
+    # prepare data loaders
+    train_dl = DataLoader(train, batch_size=BS, shuffle=True)
+    test_dl = DataLoader(test, batch_size=BS, shuffle=True)
+    return train_dl, test_dl
+
+# train the model
+def train_model(train_dl, model):
+    # define the optimization
+    criterion = MSELoss()
+#    criterion = CrossEntropyLoss()
+    optimizer = SGD(model.parameters(), lr=LR, momentum=0.9)
+    # enumerate epochs
+    for epoch in range(EPOCHS):
+        print('Training epoch ', epoch)
+        # enumerate mini batches
+        for i, (inputs, targets) in enumerate(train_dl):
+            # clear the gradients
+            optimizer.zero_grad()
+            #print('input: ', inputs)
+            # compute the model output
+            yhat = model(inputs)
+#            print('model output: ', yhat)
+            # calculate loss
+            loss = criterion(yhat, targets)
+            # credit assignment
+            loss.backward()
+            # update model weights
+            optimizer.step()
+            #print('target: ', targets)
+            print('batch ', i, ', loss: ', loss)
+        #print(yhat)
+    print('Finished training')
+
+# evaluate the model
+def evaluate_model(test_dl, model):
+    predictions, actuals = list(), list()
+    for i, (inputs, targets) in enumerate(test_dl):
+        # evaluate the model on the test set
+        print('input: ', inputs)
+        yhat = model(inputs)
+        #print(yhat)
+        print('model op: ', yhat)
+        # retrieve numpy array
+        yhat = yhat.detach().numpy()
+        actual = targets.numpy()
+        print('target: ', actual)
+        #actual = actual.reshape((len(actual), 1))
+        # round to class values
+        #yhat = yhat.round()
+        # store
+        predictions.append(yhat)
+        actuals.append(actual) 
+        #break
+    predictions, actuals = vstack(predictions), vstack(actuals)
+    # calculate accuracy
+    #print(actuals)
+    #print(predictions)
+    mse = mean_squared_error(actuals, predictions)
+    return mse
+
+# make a class prediction for one row of data
+def predict(row, model):
+    # convert row to data
+    row = Tensor([row])
+    # make prediction
+    yhat = model(row)
+    # retrieve numpy array
+    yhat = yhat.detach().numpy()
+    return yhat
+
+def main():
+
+    workDirs = []
+
+    if len(sys.argv) < 2:
+        print("Please provide at least two dirs")
+        return 
+
+    for i in range(1, len(sys.argv)):
+        workDirs.append(sys.argv[i])
+
+    train_dl, test_dl = prepare_data(workDirs)
+    print(len(train_dl.dataset), len(test_dl.dataset))
+
+    model = NNmodel(NUM_INPUT)
+    print(model)
+    train_model(train_dl, model)
+#    model.eval()
+    mse = evaluate_model(test_dl, model)
+    #mse = evaluate_model(train_dl, model)
+    print('MSE: %.3f, RMSE: %.3f' % (mse, sqrt(mse)))
+#    row = [0, 7641, 104457151,, 104457151, 104457151, 0, 8672, 130778, 0]
+ #   yhat = predict(row, model)
+ #   print(yhat)
+
+
+
+if __name__ == "__main__":
+    main()
