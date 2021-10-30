@@ -17,6 +17,7 @@ ReadPSec = []
 WritePSec = []
 RKBs = []
 WKBs = []
+TPs = []
 
 def processIoFiles(ioFiles):
 
@@ -71,15 +72,41 @@ def processGpuFiles(gpuFiles):
         GPUUtil.append(gpuUtil.copy())
         GPUMemUtil.append(gpuMemUtil.copy())
 
+def processTpFiles(tpFiles):
+    
+    for tpFile in tpFiles:
+   
+        fd = open(tpFile)
+        lines = fd.readlines()
+
+        tp = []
+        
+        for i in range(len(lines)):
+            try:
+
+                if "s/it" in lines[i]:
+                    tp.append(1/float(re.findall("\d+\.\d+", lines[i].split(' ')[-1])[0]))
+
+                if "it/s" in lines[i]:
+                    tp.append(float(re.findall("\d+\.\d+", lines[i].split(' ')[-1])[0]))
+
+            except:
+                continue
+
+        TPs.append(tp)
+
 def plot():
 
-    fig, axs = plt.subplots(4, 2)
+    fig, axs = plt.subplots(5, 2)
     n = len(CPUUtil)
     x = min([len(cpu) for cpu in CPUUtil])
     x_axis = [i for i in range(x)]
 
     xgpu = min([len(gpu) for gpu in GPUUtil])
     xgpu_axis = [i for i in range(xgpu)]
+
+    xgputp = min([len(tp) for tp in TPs])
+    xgputp_axis = [i for i in range(xgputp)]
 
     y_axis_cpuUtil = []
     y_axis_ioWait = []
@@ -101,6 +128,8 @@ def plot():
         axs[3, 0].plot(xgpu_axis, GPUUtil[i][:xgpu], style)
         axs[3, 1].plot(xgpu_axis, GPUMemUtil[i][:xgpu], style)
 
+    axs[4, 0].plot(xgputp_axis, TPs[0][:xgputp], 'b,')
+    
     axs[0, 0].set_title('CPU utilization')
     axs[0, 1].set_title('IO wait')
     axs[1, 0].set_title('Read IOPS')
@@ -109,6 +138,7 @@ def plot():
     axs[2, 1].set_title('Write Kb/s')
     axs[3, 0].set_title('GPU Utilization')
     axs[3, 1].set_title('GPU Memory Utilization')
+    axs[4, 0].set_title('GPU Throughput')
 
 
     plt.show()
@@ -121,15 +151,20 @@ def main():
 
     gpuFiles = []
     ioFiles = []
+    tpFiles = []
+
         
     gpuFiles.append(sys.argv[1])
     gpuFiles.append(sys.argv[2])
 
     ioFiles.append(sys.argv[3])
     ioFiles.append(sys.argv[4])
+
+    tpFiles.append(sys.argv[5])
     
     processGpuFiles(gpuFiles)
     processIoFiles(ioFiles)
+    processTpFiles(tpFiles)
 
     plot()
 
