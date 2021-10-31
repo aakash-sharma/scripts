@@ -97,7 +97,12 @@ def processTpFiles(tpFiles):
 
 def plot():
 
-    fig, axs = plt.subplots(5, 2)
+    fig1, axs1 = plt.subplots(2, 1)
+    fig2, axs2 = plt.subplots(2, 1)
+    fig3, axs3 = plt.subplots(2, 1)
+    fig4, axs4 = plt.subplots(2, 1)
+    fig5, axs5 = plt.subplots(1)
+
     n = len(CPUUtil)
     x = min([len(cpu) for cpu in CPUUtil])
     x_axis = [i for i in range(x)]
@@ -108,37 +113,70 @@ def plot():
     xgputp = min([len(tp) for tp in TPs])
     xgputp_axis = [i for i in range(xgputp)]
 
-    y_axis_cpuUtil = []
-    y_axis_ioWait = []
-    y_axis_rps = []
-    y_axis_wps = []
-
     for i in range(n):
         style = None
         if i == 0:
             style = 'm,'
+            label="AWS"
         else:
             style = 'b,'
-        axs[0, 0].plot(x_axis, CPUUtil[i][:x], style)
-        axs[0, 1].plot(x_axis, IOWait[i][:x], style)
-        axs[1, 0].plot(x_axis, ReadPSec[i][:x], style)
-        axs[1, 1].plot(x_axis, WritePSec[i][:x], style)
-        axs[2, 0].plot(x_axis, RKBs[i][:x], style)
-        axs[2, 1].plot(x_axis, WKBs[i][:x], style)
-        axs[3, 0].plot(xgpu_axis, GPUUtil[i][:xgpu], style)
-        axs[3, 1].plot(xgpu_axis, GPUMemUtil[i][:xgpu], style)
+            label = "Chameleon"
 
-    axs[4, 0].plot(xgputp_axis, TPs[0][:xgputp], 'b,')
+        axs1[0].plot(x_axis, CPUUtil[i][:x], style, label=label)
+        axs1[1].plot(x_axis, IOWait[i][:x], style, label=label)
+        axs2[0].plot(x_axis, ReadPSec[i][:x], style, label=label)
+        axs2[1].plot(x_axis, WritePSec[i][:x], style, label=label)
+        axs3[0].plot(x_axis, RKBs[i][:x], style, label=label)
+        axs3[1].plot(x_axis, WKBs[i][:x], style, label=label)
+        axs4[0].plot(xgpu_axis, GPUUtil[i][:xgpu], style, label=label)
+        axs4[1].plot(xgpu_axis, GPUMemUtil[i][:xgpu], style, label=label)
+
+    axs5.plot(xgputp_axis, TPs[0][:xgputp], 'b,', label='Chameleon')
     
-    axs[0, 0].set_title('CPU utilization')
-    axs[0, 1].set_title('IO wait')
-    axs[1, 0].set_title('Read IOPS')
-    axs[1, 1].set_title('Write IOPS')
-    axs[2, 0].set_title('Read Kb/s')
-    axs[2, 1].set_title('Write Kb/s')
-    axs[3, 0].set_title('GPU Utilization')
-    axs[3, 1].set_title('GPU Memory Utilization')
-    axs[4, 0].set_title('GPU Throughput')
+    axs1[0].set_title('CPU utilization')
+    axs1[0].legend()
+    axs1[0].set_xlabel('Nomralized Time')
+    axs1[0].set_ylabel('Utilization %')
+
+    axs1[1].set_title('IO wait')
+    axs1[1].legend()
+    axs1[1].set_xlabel('Nomralized Time')
+    axs1[1].set_ylabel('Wait %')
+
+    axs2[0].set_title('Read IOPS')
+    axs2[0].legend()
+    axs2[0].set_xlabel('Nomralized Time')
+    axs2[0].set_ylabel('IOPS')
+
+    axs2[1].set_title('Write IOPS')
+    axs2[1].legend()
+    axs2[1].set_xlabel('Nomralized Time')
+    axs2[1].set_ylabel('IOPS')
+
+    axs3[0].set_title('Read Kb/s')
+    axs3[0].legend()
+    axs3[0].set_xlabel('Nomralized Time')
+    axs3[0].set_ylabel('Kb/s')
+
+    axs3[1].set_title('Write Kb/s')
+    axs3[1].legend()
+    axs3[1].set_xlabel('Nomralized Time')
+    axs3[1].set_ylabel('Kb/s')
+
+    axs4[0].set_title('GPU Utilization')
+    axs4[0].legend()
+    axs4[0].set_xlabel('Nomralized Time')
+    axs4[0].set_ylabel('Utilization %')
+
+    axs4[1].set_title('GPU Memory Utilization')
+    axs4[1].legend()
+    axs4[1].set_xlabel('Nomralized Time')
+    axs4[1].set_ylabel('Utilization %')
+
+    axs5.set_title('GPU Throughput')
+    axs5.legend()
+    axs5.set_xlabel('Nomralized Time')
+    axs5.set_xlabel('Throughput')
 
 
     plt.show()
