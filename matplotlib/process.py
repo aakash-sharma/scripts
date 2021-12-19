@@ -18,6 +18,7 @@ WritePSec = []
 RKBs = []
 WKBs = []
 TPs = []
+LTs = []
 
 def processIoFiles(ioFiles):
 
@@ -93,7 +94,25 @@ def processTpFiles(tpFiles):
             except:
                 continue
 
-        TPs.append(tp)
+        TPs.append(tp.copy())
+
+def processLoadFiles(loadFiles):
+    
+    for ltFile in loadFiles:
+   
+        fd = open(ltFile)
+        lines = fd.readlines()
+
+        lt = []
+        
+        for i in range(len(lines)):
+            try:
+                lt.append(float(lines[i]))
+
+            except:
+                continue
+
+        LTs.append(lt.copy())
 
 def plot(consolidated):
 
@@ -192,12 +211,13 @@ def plotNew():
 
     n = len(CPUUtil)
 
-    fig1, axs1 = plt.subplots(n, 1,  squeeze=False)
+    fig1, axs1 = plt.subplots(n, 1, squeeze=False)
     fig2, axs2 = plt.subplots(n, 1, squeeze=False)
     fig3, axs3 = plt.subplots(n, 1, squeeze=False)
     fig4, axs4 = plt.subplots(n, 1, squeeze=False)
     fig5, axs5 = plt.subplots(n, 1, squeeze=False)
-    fig6, axs6 = plt.subplots(1, squeeze=False)
+    fig6, axs6 = plt.subplots(n, 1, squeeze=False)
+    fig7, axs7 = plt.subplots(n, 1, squeeze=False)
 
     xgputp = min([len(tp) for tp in TPs])
     xgputp_axis = [i for i in range(xgputp)]
@@ -206,13 +226,13 @@ def plotNew():
         style = None
         if i == 0:
             style = 'r.'
-            label="8 * p2.2xlarge"
+            label="p2.xlarge"
         elif i == 1:
             style = 'b.'
-            label = "1 * p2.16xlarge"
+            label = "p2.8xlarge"
         elif i == 2:
             style = 'g.'
-            label = "Infiniband"
+            label = "p2.16xlarge"
 
 
         x_axis = [j for j in range(len(CPUUtil[i]))]
@@ -221,7 +241,8 @@ def plotNew():
         axs3[i, 0].plot([i for i in range(len(WritePSec[i]))], WritePSec[i], style, label=label)
         axs4[i, 0].plot([i for i in range(len(GPUUtil[i]))], GPUUtil[i], style, label=label)
         axs5[i, 0].plot([i for i in range(len(GPUMemUtil[i]))], GPUMemUtil[i], style, label=label)
-        axs6[i, 0].plot(xgputp_axis, TPs[i][:xgputp], style, label=label)
+        axs6[i, 0].plot([i for i in range(len(LTs[i]))], LTs[i], style, label=label)
+        axs7[i, 0].plot([i for i in range(len(TPs[i]))], TPs[i], style, label=label)
 
         axs1[i, 0].set_title('CPU utilization')
         axs1[i, 0].legend()
@@ -248,56 +269,16 @@ def plotNew():
         axs5[i, 0].set_xlabel('Nomralized Time')
         axs5[i, 0].set_ylabel('Utilization %')
 
-        axs5[i, 0].set_title('Training Throughput')
-        axs5[i, 0].legend()
-        axs5[i, 0].set_xlabel('Nomralized Time')
-        axs5[i, 0].set_ylabel('Throughput')
+        axs6[i, 0].set_title('Load Time')
+        axs6[i, 0].legend()
+        axs6[i, 0].set_xlabel('Nomralized Time')
+        axs6[i, 0].set_ylabel('Utilization %')
 
+        axs7[i, 0].set_title('Training Throughput')
+        axs7[i, 0].legend()
+        axs7[i, 0].set_xlabel('Nomralized Time')
+        axs7[i, 0].set_ylabel('Throughput')
 
-
-    """
-
-    axs1[1].set_title('IO wait')
-    axs1[1].legend()
-    axs1[1].set_xlabel('Nomralized Time')
-    axs1[1].set_ylabel('Wait %')
-
-    axs2[0].set_title('Read IOPS')
-    axs2[0].legend()
-    axs2[0].set_xlabel('Nomralized Time')
-    axs2[0].set_ylabel('IOPS')
-
-    axs2[1].set_title('Write IOPS')
-    axs2[1].legend()
-    axs2[1].set_xlabel('Nomralized Time')
-    axs2[1].set_ylabel('IOPS')
-
-    axs3[0].set_title('Read Kb/s')
-    axs3[0].legend()
-    axs3[0].set_xlabel('Nomralized Time')
-    axs3[0].set_ylabel('Kb/s')
-
-    axs3[1].set_title('Write Kb/s')
-    axs3[1].legend()
-    axs3[1].set_xlabel('Nomralized Time')
-    axs3[1].set_ylabel('Kb/s')
-
-    axs4[0].set_title('GPU Utilization')
-    axs4[0].legend()
-    axs4[0].set_xlabel('Nomralized Time')
-    axs4[0].set_ylabel('Utilization %')
-
-    axs4[1].set_title('GPU Memory Utilization')
-    axs4[1].legend()
-    axs4[1].set_xlabel('Nomralized Time')
-    axs4[1].set_ylabel('Utilization %')
-
-    axs5.set_title('Training Throughput')
-    axs5.legend()
-    axs5.set_xlabel('Nomralized Time')
-    axs5.set_ylabel('Throughput')
-
-    """
 
     plt.show()
         
@@ -309,6 +290,7 @@ def main():
     gpuFiles = []
     ioFiles = []
     tpFiles = []
+    ltFiles = []
 
     cwd = os.getcwd()
 
@@ -316,10 +298,12 @@ def main():
         gpuFiles.append(cwd + os.path.sep + sys.argv[i] + os.path.sep + 'nvidia.out')
         ioFiles.append(cwd + os.path.sep + sys.argv[i] + os.path.sep + 'io.out')
         tpFiles.append(cwd + os.path.sep + sys.argv[i] + os.path.sep + 'it.out')
+        ltFiles.append(cwd + os.path.sep + sys.argv[i] + os.path.sep + 'loadtime.out')
 
     processGpuFiles(gpuFiles)
     processIoFiles(ioFiles)
     processTpFiles(tpFiles)
+    processLoadFiles(ltFiles)
 
     #plot()
     plotNew()
